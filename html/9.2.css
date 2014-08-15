@@ -1,0 +1,12 @@
+div {
+  cursor: default;
+}
+
+div.children-hidden  > div.child {
+  display: none;
+}
+
+div.children-expanded > div.child {
+  display: block;
+  padding-left: 20px;
+}

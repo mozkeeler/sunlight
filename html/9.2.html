@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" type="text/css" href="9.2.css">
+</head>
+<body>
+  <script type="application/javascript;version=1.7">
+    function toggleChildren(event) {
+      if (event.target.classList.contains("children-hidden")) {
+        event.target.classList.add("children-expanded");
+        event.target.classList.remove("children-hidden");
+      } else if (event.target.classList.contains("children-expanded")) {
+        event.target.classList.add("children-hidden");
+        event.target.classList.remove("children-expanded");
+      }
+      event.stopPropagation();
+    }
+
+    function getData() {
+      let data = new XMLHttpRequest();
+      data.open("GET", "br-9.2.json", false);
+      data.send();
+      return JSON.parse(data.responseText);
+    }
+
+    function listToItems(list) {
+      let items = [];
+      for (let listItem of list) {
+        let item = {
+          label: listItem,
+          children: []
+        };
+        items.push(item);
+      }
+      return items;
+    }
+
+    function getItems(jsonData) {
+      let CAs = {};
+      for (let cert of jsonData.certs) {
+        if (!CAs[cert.issuer]) {
+          CAs[cert.issuer] = [];
+        }
+        cert.label = cert.cn;
+        cert.children = [
+          { label: "notBefore: " + cert.notBefore,
+            children: [] },
+          { label: "notAfter: " + cert.notAfter,
+            children: [] },
+          { label: "sha256Fingerprint: " + cert.sha256Fingerprint,
+            children: [] }
+        ];
+        if (cert.dnsNames.length > 0) {
+          cert.children.push({
+            label: "DNSNames",
+            children: listToItems(cert.dnsNames)
+          });
+        }
+        if (cert.ipAddresses.length > 0) {
+          cert.children.push({
+            label: "IPAddresses",
+            children: listToItems(cert.ipAddresses)
+          });
+        }
+        CAs[cert.issuer].push(cert);
+      }
+      let issuerList = [];
+      for (let issuer in CAs) {
+        let issuerItem = {
+          label: issuer,
+          children: CAs[issuer].sort(function(a, b) {
+                                       if (a.label < b.label) return -1;
+                                       if (a.label == b.label) return 0;
+                                       return 1;
+                                     })
+        };
+        issuerList.push(issuerItem);
+      }
+      issuerList.sort(function(a, b) {
+        return b.children.length - a.children.length;
+      });
+      return issuerList;
+    }
+
+    function addItems(items, parentNode) {
+      for (let item of items) {
+        let div = document.createElement("div");
+        div.classList.add("children-hidden");
+        div.classList.add("child");
+        div.onclick = toggleChildren;
+        let label = document.createTextNode(item.label);
+        div.appendChild(label);
+        addItems(item.children, div);
+        parentNode.appendChild(div);
+      }
+    }
+
+    addItems(getItems(getData()), document.body);
+  </script>
+</body>
+</html>
