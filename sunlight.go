@@ -9,6 +9,7 @@ import (
 	"github.com/monicachew/certificatetransparency"
 	"net"
 	"os"
+	"crypto/rsa"
 	"strings"
 	"sync"
 	"time"
@@ -40,7 +41,7 @@ func main() {
 
 	outputLock := new(sync.Mutex)
 
-	//fmt.Print("{ \"certs\": [\n")
+	fmt.Print("{ \"certs\": [\n")
 	firstEntry := true
 	entriesFile.Map(func(ent *certificatetransparency.EntryAndPosition, err error) {
 		if err != nil {
@@ -70,26 +71,28 @@ func main() {
 
 		// BR 9.2.2: Found Common Name in Subject Alt Names, either as an IP or a
 		// DNS name.
-		foundCNinSAN := false
+		missingCNinSAN := true
 		cnAsIP := net.ParseIP(cert.Subject.CommonName)
 		if cnAsIP != nil {
 			for _, ip := range cert.IPAddresses {
 				if cnAsIP.Equal(ip) {
-					foundCNinSAN = true
+					missingCNinSAN = false
 				}
 			}
 		} else {
 			for _, san := range cert.DNSNames {
 				if error == nil && strings.EqualFold(san, cnAsPunycode) {
-					foundCNinSAN = true
+					missingCNinSAN = false
 				}
 			}
 		}
 
 		// BR 9.4.1: Validity period is longer than 60 months and issued after
-		// 2014 (really should be 1 July 2012).
+		// 2014 (really should be 1 July 2012). This should be
+		// restricted to certs that don't have CA:True
 		validPeriodTooLong := false
-		if cert.NotBefore.AddDate(0, 60, 0).After(cert.NotAfter) {
+		if cert.NotAfter.After(cert.NotBefore.AddDate(0, 60, 1)) &&
+                   (cert.BasicConstraintsValid && !cert.IsCA) {
 			validPeriodTooLong = true
 		}
 
@@ -102,10 +105,22 @@ func main() {
 		}
 
 		// Uses v1 certificates
-		deprecatedVersion := cert.Version == 1
+		deprecatedVersion := cert.Version != 3
 
-		if !foundCNinSAN || validPeriodTooLong || deprecatedSignatureAlgorithm ||
-			deprecatedVersion {
+                // Public key length <= 1024 bits
+		keyTooShort := false
+		expTooSmall := false
+                parsedKey, ok := cert.PublicKey.(*rsa.PublicKey)
+		if (ok) {
+			if parsedKey.N.BitLen() <= 1024 {
+				keyTooShort = true
+			}
+			if parsedKey.E <= 3 {
+				expTooSmall = true
+			}
+		}
+			
+		if missingCNinSAN || validPeriodTooLong || deprecatedSignatureAlgorithm || deprecatedVersion || keyTooShort || expTooSmall {
 			outputLock.Lock()
 			if !firstEntry {
 				fmt.Printf(",")
@@ -121,9 +136,11 @@ func main() {
 			fmt.Printf("\n    \"notBefore\": \"%s\",", timeToJSONString(cert.NotBefore.Local()))
 			fmt.Printf("\n    \"notAfter\": \"%s\",", timeToJSONString(cert.NotAfter.Local()))
 			fmt.Printf("\n    \"validPeriodTooLong\": \"%t\",", validPeriodTooLong)
-			fmt.Printf("\n    \"deprecatedSignatureAlgorithm\": \"%s\",", deprecatedSignatureAlgorithm)
+			fmt.Printf("\n    \"deprecatedSignatureAlgorithm\": \"%t\",", deprecatedSignatureAlgorithm)
 			fmt.Printf("\n    \"deprecatedVersion\": \"%t\",", deprecatedVersion)
-			fmt.Printf("\n    \"foundCNinSAN\": \"%t\",", foundCNinSAN)
+			fmt.Printf("\n    \"missingCNinSAN\": \"%t\",", missingCNinSAN)
+			fmt.Printf("\n    \"keyTooShort\": \"%t\",", keyTooShort)
+			fmt.Printf("\n    \"expTooSmall\": \"%t\",", expTooSmall)
 			fmt.Printf("\n    \"signatureAlgorithm\": \"%d\",", cert.SignatureAlgorithm)
 			fmt.Printf("\n    \"version\": \"%d\",", cert.Version)
 			fmt.Printf("\n    \"dnsNames\": [")
@@ -152,5 +169,5 @@ func main() {
 		}
 	})
 	fmt.Print("\n]\n")
-	//fmt.Print("}\n")
+	fmt.Print("}\n")
 }
