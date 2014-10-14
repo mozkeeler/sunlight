@@ -7,7 +7,7 @@ import (
   "fmt"
   "net"
   "os"
-  "punycode" // this is not actually a standard library - I grabbed it from cookiejar
+  "code.google.com/p/go.net/idna"
   "strings"
   "sync"
   "time"
@@ -26,6 +26,8 @@ func main() {
   }
   fileName := os.Args[1]
 
+  now := time.Now()
+  fmt.Fprintf(os.Stderr, "Starting %s\n", time.Now())
   in, err := os.Open(fileName)
   if err != nil {
     fmt.Fprintf(os.Stderr, "Failed to open entries file: %s\n", err)
@@ -34,12 +36,12 @@ func main() {
   defer in.Close()
 
   entriesFile := certificatetransparency.EntriesFile{in}
+  fmt.Fprintf(os.Stderr, "Initialized entries %s\n", time.Now())
 
   outputLock := new(sync.Mutex)
 
-  fmt.Print("{ \"certs\": [\n")
+  //fmt.Print("{ \"certs\": [\n")
   firstEntry := true
-  now := time.Now()
   entriesFile.Map(func(ent *certificatetransparency.EntryAndPosition, err error) {
     if err != nil {
       return
@@ -61,11 +63,13 @@ func main() {
       return
     }
 
-    cnAsPunycode, error := punycode.ToASCII(cert.Subject.CommonName)
+    cnAsPunycode, error := idna.ToASCII(cert.Subject.CommonName)
     if error != nil {
       return
     }
 
+    // BR 9.2.2: Found Common Name in Subject Alt Names, either as an IP or a
+    // DNS name.
     foundCNinSAN := false
     cnAsIP := net.ParseIP(cert.Subject.CommonName)
     if (cnAsIP != nil) {
@@ -81,11 +85,32 @@ func main() {
         }
       }
     }
-    if !foundCNinSAN {
+
+    // BR 9.4.1: Validity period is longer than 60 months and issued after
+    // 2014 (really should be 1 July 2012).
+    validPeriodTooLong := false
+    if cert.NotBefore.AddDate(0, 60, 0).After(cert.NotAfter) {
+        validPeriodTooLong = true
+    }
+
+    // SignatureAlgorithm is SHA1
+    deprecatedSignatureAlgorithm := false
+    if cert.SignatureAlgorithm == x509.SHA1WithRSA ||
+       cert.SignatureAlgorithm == x509.DSAWithSHA1 ||
+       cert.SignatureAlgorithm == x509.ECDSAWithSHA1 {
+        deprecatedSignatureAlgorithm = true
+    }
+
+    // Uses v1 certificates
+    deprecatedVersion := cert.Version == 1
+
+    if !foundCNinSAN || validPeriodTooLong || deprecatedSignatureAlgorithm ||
+       deprecatedVersion {
       outputLock.Lock()
       if !firstEntry {
         fmt.Printf(",")
       }
+
       firstEntry = false
       fmt.Printf("\n  {")
       fmt.Printf("\n    \"cn\": \"%s\",", cert.Subject.CommonName)
@@ -95,7 +120,12 @@ func main() {
       fmt.Printf("\n    \"sha256Fingerprint\": \"%s\",", base64.StdEncoding.EncodeToString(sha256hasher.Sum(nil)))
       fmt.Printf("\n    \"notBefore\": \"%s\",", timeToJSONString(cert.NotBefore.Local()))
       fmt.Printf("\n    \"notAfter\": \"%s\",", timeToJSONString(cert.NotAfter.Local()))
-
+      fmt.Printf("\n    \"validPeriodTooLong\": \"%t\",", validPeriodTooLong)
+      fmt.Printf("\n    \"deprecatedSignatureAlgorithm\": \"%s\",", deprecatedSignatureAlgorithm)
+      fmt.Printf("\n    \"deprecatedVersion\": \"%t\",", deprecatedVersion)
+      fmt.Printf("\n    \"foundCNinSAN\": \"%t\",", foundCNinSAN)
+      fmt.Printf("\n    \"signatureAlgorithm\": \"%d\",", cert.SignatureAlgorithm)
+      fmt.Printf("\n    \"version\": \"%d\",", cert.Version)
       fmt.Printf("\n    \"dnsNames\": [")
       firstName := true
       for _, san := range cert.DNSNames {
@@ -121,5 +151,6 @@ func main() {
       outputLock.Unlock()
     }
   })
-  fmt.Print("\n]}\n")
+  fmt.Print("\n]\n")
+  //fmt.Print("}\n")
 }
