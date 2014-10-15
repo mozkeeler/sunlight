@@ -2,6 +2,7 @@ package main
 
 import (
 	"code.google.com/p/go.net/idna"
+	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
@@ -9,7 +10,6 @@ import (
 	"github.com/monicachew/certificatetransparency"
 	"net"
 	"os"
-	"crypto/rsa"
 	"strings"
 	"sync"
 	"time"
@@ -60,8 +60,7 @@ func main() {
 
 		// Filter out certs issued before 2013 or that have already
 		// expired.
-		if cert.NotBefore.Before(time.Date(2013, 1, 1, 0, 0, 0, 0,
-time.UTC)) ||
+		if cert.NotBefore.Before(time.Date(2013, 1, 1, 0, 0, 0, 0, time.UTC)) ||
 			cert.NotAfter.Before(now) {
 			return
 		}
@@ -93,7 +92,7 @@ time.UTC)) ||
 		// should be restricted to certs that don't have CA:True
 		validPeriodTooLong := false
 		if cert.NotAfter.After(cert.NotBefore.AddDate(5, 0, 0)) &&
-                   (!cert.BasicConstraintsValid || (cert.BasicConstraintsValid && !cert.IsCA)) {
+			(!cert.BasicConstraintsValid || (cert.BasicConstraintsValid && !cert.IsCA)) {
 			validPeriodTooLong = true
 		}
 
@@ -108,11 +107,11 @@ time.UTC)) ||
 		// Uses v1 certificates
 		deprecatedVersion := cert.Version != 3
 
-                // Public key length <= 1024 bits
+		// Public key length <= 1024 bits
 		keyTooShort := false
 		expTooSmall := false
-                parsedKey, ok := cert.PublicKey.(*rsa.PublicKey)
-		if (ok) {
+		parsedKey, ok := cert.PublicKey.(*rsa.PublicKey)
+		if ok {
 			if parsedKey.N.BitLen() <= 1024 {
 				keyTooShort = true
 			}
@@ -120,7 +119,7 @@ time.UTC)) ||
 				expTooSmall = true
 			}
 		}
-			
+
 		if missingCNinSAN || validPeriodTooLong || deprecatedSignatureAlgorithm || deprecatedVersion || keyTooShort || expTooSmall {
 			outputLock.Lock()
 			if !firstEntry {
