@@ -93,7 +93,7 @@ time.UTC)) ||
 		// should be restricted to certs that don't have CA:True
 		validPeriodTooLong := false
 		if cert.NotAfter.After(cert.NotBefore.AddDate(5, 0, 0)) &&
-                   (cert.BasicConstraintsValid && !cert.IsCA) {
+                   (!cert.BasicConstraintsValid || (cert.BasicConstraintsValid && !cert.IsCA)) {
 			validPeriodTooLong = true
 		}
 
@@ -141,7 +141,9 @@ time.UTC)) ||
 			fmt.Printf("\n    \"deprecatedVersion\": \"%t\",", deprecatedVersion)
 			fmt.Printf("\n    \"missingCNinSAN\": \"%t\",", missingCNinSAN)
 			fmt.Printf("\n    \"keyTooShort\": \"%t\",", keyTooShort)
+			fmt.Printf("\n    \"keySize\": \"%d\",", parsedKey.N.BitLen())
 			fmt.Printf("\n    \"expTooSmall\": \"%t\",", expTooSmall)
+			fmt.Printf("\n    \"exp\": \"%d\",", parsedKey.E)
 			fmt.Printf("\n    \"signatureAlgorithm\": \"%d\",", cert.SignatureAlgorithm)
 			fmt.Printf("\n    \"version\": \"%d\",", cert.Version)
 			fmt.Printf("\n    \"dnsNames\": [")
