@@ -179,6 +179,6 @@ func main() {
 	if err == nil {
 		os.Stdout.Write(b)
 	} else {
-		fmt.Println("Couldn't write json", err)
+		fmt.Fprintf(os.Stderr, "Couldn't write json: %s\n", err)
 	}
 }
