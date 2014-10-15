@@ -110,12 +110,16 @@ func main() {
 		// Public key length <= 1024 bits
 		keyTooShort := false
 		expTooSmall := false
+		keySize := -1
+		exp := -1
 		parsedKey, ok := cert.PublicKey.(*rsa.PublicKey)
 		if ok {
-			if parsedKey.N.BitLen() <= 1024 {
+			keySize = parsedKey.N.BitLen()
+			exp = parsedKey.E
+			if keySize <= 1024 {
 				keyTooShort = true
 			}
-			if parsedKey.E <= 3 {
+			if exp <= 3 {
 				expTooSmall = true
 			}
 		}
@@ -140,11 +144,12 @@ func main() {
 			fmt.Printf("\n    \"deprecatedVersion\": \"%t\",", deprecatedVersion)
 			fmt.Printf("\n    \"missingCNinSAN\": \"%t\",", missingCNinSAN)
 			fmt.Printf("\n    \"keyTooShort\": \"%t\",", keyTooShort)
-			fmt.Printf("\n    \"keySize\": \"%d\",", parsedKey.N.BitLen())
+			fmt.Printf("\n    \"keySize\": \"%d\",", keySize)
 			fmt.Printf("\n    \"expTooSmall\": \"%t\",", expTooSmall)
-			fmt.Printf("\n    \"exp\": \"%d\",", parsedKey.E)
+			fmt.Printf("\n    \"exp\": \"%d\",", exp)
 			fmt.Printf("\n    \"signatureAlgorithm\": \"%d\",", cert.SignatureAlgorithm)
 			fmt.Printf("\n    \"version\": \"%d\",", cert.Version)
+			fmt.Printf("\n    \"isCA\": \"%t\",", cert.BasicConstraintsValid && cert.IsCA)
 			fmt.Printf("\n    \"dnsNames\": [")
 			firstName := true
 			for _, san := range cert.DNSNames {
