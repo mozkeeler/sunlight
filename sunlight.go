@@ -58,8 +58,10 @@ func main() {
 			return
 		}
 
-		// Filter out certs issued before 2014 or that have already expired.
-		if cert.NotBefore.Before(time.Date(2014, 1, 1, 0, 0, 0, 0, time.UTC)) ||
+		// Filter out certs issued before 2013 or that have already
+		// expired.
+		if cert.NotBefore.Before(time.Date(2013, 1, 1, 0, 0, 0, 0,
+time.UTC)) ||
 			cert.NotAfter.Before(now) {
 			return
 		}
@@ -87,11 +89,10 @@ func main() {
 			}
 		}
 
-		// BR 9.4.1: Validity period is longer than 60 months and issued after
-		// 2014 (really should be 1 July 2012). This should be
-		// restricted to certs that don't have CA:True
+		// BR 9.4.1: Validity period is longer than 5 years.  This
+		// should be restricted to certs that don't have CA:True
 		validPeriodTooLong := false
-		if cert.NotAfter.After(cert.NotBefore.AddDate(0, 60, 1)) &&
+		if cert.NotAfter.After(cert.NotBefore.AddDate(5, 0, 0)) &&
                    (cert.BasicConstraintsValid && !cert.IsCA) {
 			validPeriodTooLong = true
 		}
