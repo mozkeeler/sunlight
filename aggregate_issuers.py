@@ -20,35 +20,35 @@ def main():
   for c in certs:
     issuer = c.issuer
     if not issuers[issuer]:
-      issuers[issuer] = { "deprecatedVersion": 0,
-                          "expTooSmall": 0,
-                          "isCA": 0,
-                          "keyTooShort": 0,
-                          "missingCNinSAN": 0,
-                          "validPeriodTooLong": 0 }
+      issuers[issuer] = { "DeprecatedVersion": 0,
+                          "ExpTooSmall": 0,
+                          "IsCA": 0,
+                          "KeyTooShort": 0,
+                          "MissingCNinSAN": 0,
+                          "ValidPeriodTooLong": 0 }
     if c.deprecatedVersion:
-      issuers[issuer]["deprecatedVersion"] += 1
+      issuers[issuer]["DeprecatedVersion"] += 1
     if c.expTooSmall:
-      issuers[issuer]["expTooSmall"] += 1
+      issuers[issuer]["ExpTooSmall"] += 1
     if c.isCA:
-      issuers[issuer]["isCA"] += 1
+      issuers[issuer]["IsCA"] += 1
     if c.keyTooShort:
-      issuers[issuer]["keyTooShort"] += 1
+      issuers[issuer]["KeyTooShort"] += 1
     if c.missingCNinSAN:
-      issuers[issuer]["missingCNinSAN"] += 1
+      issuers[issuer]["MissingCNinSAN"] += 1
     if c.validPeriodTooLong:
-      issuers[issuer]["validPeriodTooLong"] += 1
+      issuers[issuer]["ValidPeriodTooLong"] += 1
 
   f_out.write("issuer,deprecatedVersion,expTooSmall,isCA,keyTooShort,missingCNinSAN,validPeriodTooLong\n");
   for issuer in issuers:
     f_out.write("%s,%d,%d,%d,%d,%d,%d\n",
                 issuer,
-                issuers[issuer]["deprecatedVersion"],
-                issuers[issuer]["expTooSmall"],
-                issuers[issuer]["isCA"],
-                issuers[issuer]["keyTooShort"],
-                issuers[issuer]["missingCNinSAN"],
-                issuers[issuer]["validPeriodTooLong"]);
+                issuers[issuer]["DeprecatedVersion"],
+                issuers[issuer]["ExpTooSmall"],
+                issuers[issuer]["IsCA"],
+                issuers[issuer]["KeyTooShort"],
+                issuers[issuer]["MissingCNinSAN"],
+                issuers[issuer]["ValidPeriodTooLong"]);
 
 if __name__ == "__main__":
   main()

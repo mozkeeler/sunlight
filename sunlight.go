@@ -6,12 +6,12 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"github.com/monicachew/certificatetransparency"
 	"net"
 	"os"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -39,10 +39,31 @@ func main() {
 	entriesFile := certificatetransparency.EntriesFile{in}
 	fmt.Fprintf(os.Stderr, "Initialized entries %s\n", time.Now())
 
-	outputLock := new(sync.Mutex)
-
-	fmt.Print("{ \"certs\": [\n")
-	firstEntry := true
+	// Only fields that start with capital letters are exported
+	type CertSummary struct {
+		CN                           string
+		Issuer                       string
+		Sha256Fingerprint            string
+		NotBefore                    string
+		NotAfter                     string
+		ValidPeriodTooLong           bool
+		DeprecatedSignatureAlgorithm bool
+		DeprecatedVersion            bool
+		MissingCNinSAN               bool
+		KeyTooShort                  bool
+		KeySize                      int
+		ExpTooSmall                  bool
+		Exp                          int
+		SignatureAlgorithm           int
+		Version                      int
+		IsCA                         bool
+		DnsNames                     []string
+		IpAddresses                  []string
+	}
+	type CertsSummary struct {
+		Certs []CertSummary
+	}
+	certs := CertsSummary{}
 	entriesFile.Map(func(ent *certificatetransparency.EntryAndPosition, err error) {
 		if err != nil {
 			return
@@ -124,57 +145,40 @@ func main() {
 			}
 		}
 
-		if missingCNinSAN || validPeriodTooLong || deprecatedSignatureAlgorithm || deprecatedVersion || keyTooShort || expTooSmall {
-			outputLock.Lock()
-			if !firstEntry {
-				fmt.Printf(",")
-			}
-
-			firstEntry = false
-			fmt.Printf("\n  {")
-			fmt.Printf("\n    \"cn\": \"%s\",", cert.Subject.CommonName)
-			fmt.Printf("\n    \"issuer\": \"%s\",", cert.Issuer.CommonName)
+		if missingCNinSAN || validPeriodTooLong || deprecatedSignatureAlgorithm ||
+			deprecatedVersion || keyTooShort || expTooSmall {
 			sha256hasher := sha256.New()
 			sha256hasher.Write(cert.Raw)
-			fmt.Printf("\n    \"sha256Fingerprint\": \"%s\",", base64.StdEncoding.EncodeToString(sha256hasher.Sum(nil)))
-			fmt.Printf("\n    \"notBefore\": \"%s\",", timeToJSONString(cert.NotBefore.Local()))
-			fmt.Printf("\n    \"notAfter\": \"%s\",", timeToJSONString(cert.NotAfter.Local()))
-			fmt.Printf("\n    \"validPeriodTooLong\": \"%t\",", validPeriodTooLong)
-			fmt.Printf("\n    \"deprecatedSignatureAlgorithm\": \"%t\",", deprecatedSignatureAlgorithm)
-			fmt.Printf("\n    \"deprecatedVersion\": \"%t\",", deprecatedVersion)
-			fmt.Printf("\n    \"missingCNinSAN\": \"%t\",", missingCNinSAN)
-			fmt.Printf("\n    \"keyTooShort\": \"%t\",", keyTooShort)
-			fmt.Printf("\n    \"keySize\": \"%d\",", keySize)
-			fmt.Printf("\n    \"expTooSmall\": \"%t\",", expTooSmall)
-			fmt.Printf("\n    \"exp\": \"%d\",", exp)
-			fmt.Printf("\n    \"signatureAlgorithm\": \"%d\",", cert.SignatureAlgorithm)
-			fmt.Printf("\n    \"version\": \"%d\",", cert.Version)
-			fmt.Printf("\n    \"isCA\": \"%t\",", cert.BasicConstraintsValid && cert.IsCA)
-			fmt.Printf("\n    \"dnsNames\": [")
-			firstName := true
-			for _, san := range cert.DNSNames {
-				if !firstName {
-					fmt.Printf(",")
-				}
-				firstName = false
-				fmt.Printf("\n      \"%s\"", san)
+			summary := CertSummary{
+				CN:                           cert.Subject.CommonName,
+				Issuer:                       cert.Issuer.CommonName,
+				Sha256Fingerprint:            base64.StdEncoding.EncodeToString(sha256hasher.Sum(nil)),
+				NotBefore:                    timeToJSONString(cert.NotBefore.Local()),
+				NotAfter:                     timeToJSONString(cert.NotAfter.Local()),
+				ValidPeriodTooLong:           validPeriodTooLong,
+				DeprecatedSignatureAlgorithm: deprecatedSignatureAlgorithm,
+				DeprecatedVersion:            deprecatedVersion,
+				MissingCNinSAN:               missingCNinSAN,
+				KeyTooShort:                  keyTooShort,
+				KeySize:                      keySize,
+				ExpTooSmall:                  expTooSmall,
+				Exp:                          exp,
+				SignatureAlgorithm:           int(cert.SignatureAlgorithm),
+				Version:                      cert.Version,
+				IsCA:                         cert.BasicConstraintsValid && cert.IsCA,
+				DnsNames:                     cert.DNSNames,
+				IpAddresses:                  nil,
 			}
-			fmt.Printf("\n    ],")
-
-			fmt.Printf("\n    \"ipAddresses\": [")
-			firstAddress := true
 			for _, address := range cert.IPAddresses {
-				if !firstAddress {
-					fmt.Printf(",")
-				}
-				firstAddress = false
-				fmt.Printf("\n      \"%s\"", address.String())
+				summary.IpAddresses = append(summary.IpAddresses, address.String())
 			}
-			fmt.Printf("\n    ]")
-			fmt.Printf("\n  }")
-			outputLock.Unlock()
+			certs.Certs = append(certs.Certs, summary)
 		}
 	})
-	fmt.Print("\n]\n")
-	fmt.Print("}\n")
+	b, err := json.Marshal(certs)
+	if err == nil {
+		os.Stdout.Write(b)
+	} else {
+		fmt.Println("Couldn't write json", err)
+	}
 }
