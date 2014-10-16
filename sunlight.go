@@ -13,7 +13,9 @@ import (
 	"github.com/monicachew/certificatetransparency"
 	"net"
 	"os"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -23,11 +25,16 @@ func timeToJSONString(t time.Time) string {
 }
 
 func main() {
-	if len(os.Args) != 2 {
-		fmt.Fprintf(os.Stderr, "Usage: %s <log entries file>\n", os.Args[0])
+	if len(os.Args) < 2 {
+		fmt.Fprintf(os.Stderr, "Usage: %s <log entries file> [uint64 max_entries_to_read]\n", os.Args[0])
 		os.Exit(1)
 	}
 	fileName := os.Args[1]
+	// No limit on entries read
+	var limit uint64 = 0
+	if len(os.Args) == 3 {
+		limit, _ = strconv.ParseUint(os.Args[2], 0, 64)
+	}
 
 	db, err := sql.Open("sqlite3", "./BRs.db")
 	if err != nil {
@@ -93,10 +100,11 @@ func main() {
 		DnsNames                     []string
 		IpAddresses                  []string
 	}
-	type CertsSummary struct {
-		Certs []CertSummary
-	}
-	certs := CertsSummary{}
+
+	fmt.Fprintf(os.Stdout, "{\"Certs\":[")
+	firstOutLock := new(sync.Mutex)
+	firstOut := true
+
 	entriesFile.Map(func(ent *certificatetransparency.EntryAndPosition, err error) {
 		if err != nil {
 			return
@@ -145,7 +153,7 @@ func main() {
 		// BR 9.4.1: Validity period is longer than 5 years.  This
 		// should be restricted to certs that don't have CA:True
 		validPeriodTooLong := false
-		if cert.NotAfter.After(cert.NotBefore.AddDate(5, 0, 0)) &&
+		if cert.NotAfter.After(cert.NotBefore.AddDate(5, 0, 7)) &&
 			(!cert.BasicConstraintsValid || (cert.BasicConstraintsValid && !cert.IsCA)) {
 			validPeriodTooLong = true
 		}
@@ -205,19 +213,28 @@ func main() {
 			for _, address := range cert.IPAddresses {
 				summary.IpAddresses = append(summary.IpAddresses, address.String())
 			}
-			certs.Certs = append(certs.Certs, summary)
 			_, err = insertEntry.Exec(summary.CN, summary.Issuer, summary.Sha256Fingerprint, cert.NotBefore, cert.NotAfter, summary.ValidPeriodTooLong, summary.DeprecatedSignatureAlgorithm, summary.DeprecatedVersion, summary.MissingCNinSAN, summary.KeyTooShort, summary.KeySize, summary.ExpTooSmall, summary.Exp, summary.SignatureAlgorithm, summary.Version)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Failed to insert entry: %s\n", err)
 				os.Exit(1)
 			}
+			marshalled, err := json.Marshal(summary)
+			if err == nil {
+				separator := ",\n"
+				firstOutLock.Lock()
+				if firstOut {
+					separator = "\n"
+				}
+				fmt.Fprintf(os.Stdout, "%s", separator)
+				os.Stdout.Write(marshalled)
+				firstOut = false
+				firstOutLock.Unlock()
+			} else {
+				fmt.Fprintf(os.Stderr, "Couldn't write json: %s\n", err)
+				os.Exit(1)
+			}
 		}
-	})
+	}, limit)
 	tx.Commit()
-	b, err := json.Marshal(certs)
-	if err == nil {
-		os.Stdout.Write(b)
-	} else {
-		fmt.Fprintf(os.Stderr, "Couldn't write json: %s\n", err)
-	}
+	fmt.Fprintf(os.Stdout, "]}\n")
 }
