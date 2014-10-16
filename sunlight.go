@@ -42,6 +42,7 @@ func main() {
 		os.Exit(1)
 	}
 	defer in.Close()
+      fmt.Fprintf(os.Stderr, "testing go fmt pre-commit hook")
 
 	entriesFile := certificatetransparency.EntriesFile{in}
 	fmt.Fprintf(os.Stderr, "Initialized entries %s\n", time.Now())
