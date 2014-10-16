@@ -45,7 +45,16 @@ func main() {
 
 	createTables := `
   drop table if exists baselineRequirements;
-  create table baselineRequirements (cn text, issuer text, sha256Fingerprint text, notBefore date, notAfter date, validPeriodTooLong bool, deprecatedSignatureAlgorithm bool, deprecatedVersion bool, missingCNinSAN bool, keyTooShort bool, keySize integer, expTooSmall bool, exp integer, signatureAlgorithm integer, version integer);
+  create table baselineRequirements (cn text, issuer text,
+                                     sha256Fingerprint text, notBefore date,
+                                     notAfter date, validPeriodTooLong bool,
+                                     deprecatedSignatureAlgorithm bool,
+                                     deprecatedVersion bool,
+                                     missingCNinSAN bool, keyTooShort bool,
+                                     keySize integer, expTooSmall bool,
+                                     exp integer, signatureAlgorithm integer,
+                                     version integer, dnsNames string,
+                                     ipAddresses string);
   `
 
 	_, err = db.Exec(createTables)
@@ -60,12 +69,22 @@ func main() {
 		os.Exit(1)
 	}
 
-	insertEntry, err := tx.Prepare("insert into baselineRequirements(cn, issuer, sha256Fingerprint, notBefore, notAfter, validPeriodTooLong, deprecatedSignatureAlgorithm, deprecatedVersion, missingCNinSAN, keyTooShort, keySize, expTooSmall, exp, signatureAlgorithm, version) values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+	insertEntry := `
+  insert into baselineRequirements(cn, issuer, sha256Fingerprint, notBefore,
+                                   notAfter, validPeriodTooLong,
+                                   deprecatedSignatureAlgorithm,
+                                   deprecatedVersion, missingCNinSAN,
+                                   keyTooShort, keySize, expTooSmall, exp,
+                                   signatureAlgorithm, version, dnsNames,
+                                   ipAddresses)
+              values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `
+	insertEntryStatement, err := tx.Prepare(insertEntry)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create prepared statement: %s\n", err)
 		os.Exit(1)
 	}
-	defer insertEntry.Close()
+	defer insertEntryStatement.Close()
 
 	now := time.Now()
 	fmt.Fprintf(os.Stderr, "Starting %s\n", time.Now())
@@ -213,7 +232,28 @@ func main() {
 			for _, address := range cert.IPAddresses {
 				summary.IpAddresses = append(summary.IpAddresses, address.String())
 			}
-			_, err = insertEntry.Exec(summary.CN, summary.Issuer, summary.Sha256Fingerprint, cert.NotBefore, cert.NotAfter, summary.ValidPeriodTooLong, summary.DeprecatedSignatureAlgorithm, summary.DeprecatedVersion, summary.MissingCNinSAN, summary.KeyTooShort, summary.KeySize, summary.ExpTooSmall, summary.Exp, summary.SignatureAlgorithm, summary.Version)
+			dnsNamesAsString, err := json.Marshal(summary.DnsNames)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to convert to JSON: %s\n", err)
+				os.Exit(1)
+			}
+			ipAddressesAsString, err := json.Marshal(summary.IpAddresses)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to convert to JSON: %s\n", err)
+				os.Exit(1)
+			}
+			_, err = insertEntryStatement.Exec(summary.CN, summary.Issuer,
+				summary.Sha256Fingerprint,
+				cert.NotBefore, cert.NotAfter,
+				summary.ValidPeriodTooLong,
+				summary.DeprecatedSignatureAlgorithm,
+				summary.DeprecatedVersion,
+				summary.MissingCNinSAN,
+				summary.KeyTooShort, summary.KeySize,
+				summary.ExpTooSmall, summary.Exp,
+				summary.SignatureAlgorithm,
+				summary.Version, dnsNamesAsString,
+				ipAddressesAsString)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Failed to insert entry: %s\n", err)
 				os.Exit(1)
