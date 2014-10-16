@@ -1,0 +1,4 @@
+#!/bin/sh
+
+go fmt
+git add -u
