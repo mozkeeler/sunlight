@@ -52,7 +52,7 @@ func main() {
 	a.Init(alexaFile)
 	db, err := sql.Open("sqlite3", dbFile)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to open BRs.db: %s\n", err)
+		fmt.Fprintf(os.Stderr, "Failed to open %s: %s\n", dbFile, err)
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
