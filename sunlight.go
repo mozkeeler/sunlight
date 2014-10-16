@@ -5,6 +5,7 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"flag"
@@ -46,6 +47,55 @@ func main() {
 
 	var a alexa.AlexaRank
 	a.Init(top1M)
+	db, err := sql.Open("sqlite3", "./BRs.db")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to open BRs.db: %s\n", err)
+		os.Exit(1)
+	}
+	defer db.Close()
+
+	createTables := `
+  drop table if exists baselineRequirements;
+  create table baselineRequirements (cn text, issuer text,
+                                     sha256Fingerprint text, notBefore date,
+                                     notAfter date, validPeriodTooLong bool,
+                                     deprecatedSignatureAlgorithm bool,
+                                     deprecatedVersion bool,
+                                     missingCNinSAN bool, keyTooShort bool,
+                                     keySize integer, expTooSmall bool,
+                                     exp integer, signatureAlgorithm integer,
+                                     version integer, dnsNames string,
+                                     ipAddresses string);
+  `
+
+	_, err = db.Exec(createTables)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create table: %s\n", err)
+		os.Exit(1)
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to begin using DB: %s\n", err)
+		os.Exit(1)
+	}
+
+	insertEntry := `
+  insert into baselineRequirements(cn, issuer, sha256Fingerprint, notBefore,
+                                   notAfter, validPeriodTooLong,
+                                   deprecatedSignatureAlgorithm,
+                                   deprecatedVersion, missingCNinSAN,
+                                   keyTooShort, keySize, expTooSmall, exp,
+                                   signatureAlgorithm, version, dnsNames,
+                                   ipAddresses)
+              values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `
+	insertEntryStatement, err := tx.Prepare(insertEntry)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create prepared statement: %s\n", err)
+		os.Exit(1)
+	}
+	defer insertEntryStatement.Close()
 
 	now := time.Now()
 	fmt.Fprintf(os.Stderr, "Starting %s\n", time.Now())
@@ -202,6 +252,32 @@ func main() {
 			for _, address := range cert.IPAddresses {
 				summary.IpAddresses = append(summary.IpAddresses, address.String())
 			}
+			dnsNamesAsString, err := json.Marshal(summary.DnsNames)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to convert to JSON: %s\n", err)
+				os.Exit(1)
+			}
+			ipAddressesAsString, err := json.Marshal(summary.IpAddresses)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to convert to JSON: %s\n", err)
+				os.Exit(1)
+			}
+			_, err = insertEntryStatement.Exec(summary.CN, summary.Issuer,
+				summary.Sha256Fingerprint,
+				cert.NotBefore, cert.NotAfter,
+				summary.ValidPeriodTooLong,
+				summary.DeprecatedSignatureAlgorithm,
+				summary.DeprecatedVersion,
+				summary.MissingCNinSAN,
+				summary.KeyTooShort, summary.KeySize,
+				summary.ExpTooSmall, summary.Exp,
+				summary.SignatureAlgorithm,
+				summary.Version, dnsNamesAsString,
+				ipAddressesAsString)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to insert entry: %s\n", err)
+				os.Exit(1)
+			}
 			marshalled, err := json.Marshal(summary)
 			if err == nil {
 				separator := ",\n"
@@ -219,5 +295,6 @@ func main() {
 			}
 		}
 	}, limit)
+	tx.Commit()
 	fmt.Fprintf(os.Stdout, "]}\n")
 }
