@@ -5,9 +5,11 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/monicachew/certificatetransparency"
 	"net"
 	"os"
@@ -26,6 +28,37 @@ func main() {
 		os.Exit(1)
 	}
 	fileName := os.Args[1]
+
+	db, err := sql.Open("sqlite3", "./BRs.db")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to open BRs.db: %s\n", err)
+		os.Exit(1)
+	}
+	defer db.Close()
+
+	createTables := `
+  drop table if exists baselineRequirements;
+  create table baselineRequirements (cn text, issuer text, sha256Fingerprint text, notBefore date, notAfter date, validPeriodTooLong bool, deprecatedSignatureAlgorithm bool, deprecatedVersion bool, missingCNinSAN bool, keyTooShort bool, keySize integer, expTooSmall bool, exp integer, signatureAlgorithm integer, version integer);
+  `
+
+	_, err = db.Exec(createTables)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create table: %s\n", err)
+		os.Exit(1)
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to begin using DB: %s\n", err)
+		os.Exit(1)
+	}
+
+	insertEntry, err := tx.Prepare("insert into baselineRequirements(cn, issuer, sha256Fingerprint, notBefore, notAfter, validPeriodTooLong, deprecatedSignatureAlgorithm, deprecatedVersion, missingCNinSAN, keyTooShort, keySize, expTooSmall, exp, signatureAlgorithm, version) values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create prepared statement: %s\n", err)
+		os.Exit(1)
+	}
+	defer insertEntry.Close()
 
 	now := time.Now()
 	fmt.Fprintf(os.Stderr, "Starting %s\n", time.Now())
@@ -173,8 +206,14 @@ func main() {
 				summary.IpAddresses = append(summary.IpAddresses, address.String())
 			}
 			certs.Certs = append(certs.Certs, summary)
+			_, err = insertEntry.Exec(summary.CN, summary.Issuer, summary.Sha256Fingerprint, cert.NotBefore, cert.NotAfter, summary.ValidPeriodTooLong, summary.DeprecatedSignatureAlgorithm, summary.DeprecatedVersion, summary.MissingCNinSAN, summary.KeyTooShort, summary.KeySize, summary.ExpTooSmall, summary.Exp, summary.SignatureAlgorithm, summary.Version)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to insert entry: %s\n", err)
+				os.Exit(1)
+			}
 		}
 	})
+	tx.Commit()
 	b, err := json.Marshal(certs)
 	if err == nil {
 		os.Stdout.Write(b)
