@@ -118,7 +118,7 @@ func main() {
 		// BR 9.4.1: Validity period is longer than 5 years.  This
 		// should be restricted to certs that don't have CA:True
 		validPeriodTooLong := false
-		if cert.NotAfter.After(cert.NotBefore.AddDate(5, 0, 0)) &&
+		if cert.NotAfter.After(cert.NotBefore.AddDate(5, 0, 7)) &&
 			(!cert.BasicConstraintsValid || (cert.BasicConstraintsValid && !cert.IsCA)) {
 			validPeriodTooLong = true
 		}
