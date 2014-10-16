@@ -13,6 +13,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -66,10 +67,11 @@ func main() {
 		DnsNames                     []string
 		IpAddresses                  []string
 	}
-	type CertsSummary struct {
-		Certs []CertSummary
-	}
-	certs := CertsSummary{}
+
+	fmt.Fprintf(os.Stdout, "{\"Certs\":[")
+	firstOutLock := new(sync.Mutex)
+	firstOut := true
+
 	entriesFile.Map(func(ent *certificatetransparency.EntryAndPosition, err error) {
 		if err != nil {
 			return
@@ -178,13 +180,22 @@ func main() {
 			for _, address := range cert.IPAddresses {
 				summary.IpAddresses = append(summary.IpAddresses, address.String())
 			}
-			certs.Certs = append(certs.Certs, summary)
+			marshalled, err := json.Marshal(summary)
+			if err == nil {
+				separator := ",\n"
+				firstOutLock.Lock()
+				if firstOut {
+					separator = "\n"
+				}
+				fmt.Fprintf(os.Stdout, "%s", separator)
+				os.Stdout.Write(marshalled)
+				firstOut = false
+				firstOutLock.Unlock()
+			} else {
+				fmt.Fprintf(os.Stderr, "Couldn't write json: %s\n", err)
+				os.Exit(1)
+			}
 		}
 	}, limit)
-	b, err := json.Marshal(certs)
-	if err == nil {
-		os.Stdout.Write(b)
-	} else {
-		fmt.Fprintf(os.Stderr, "Couldn't write json: %s\n", err)
-	}
+	fmt.Fprintf(os.Stdout, "]}\n")
 }
