@@ -126,18 +126,21 @@ func main() {
 
 	entriesFile.Map(func(ent *certificatetransparency.EntryAndPosition, err error) {
 		if err != nil {
+			fmt.Fprintf(os.Stderr, "%s encountered error with entry: %s\n",
+				time.Now(), err)
 			return
 		}
 
 		cert, err := x509.ParseCertificate(ent.Entry.X509Cert)
 		if err != nil {
+			fmt.Fprintf(os.Stderr, "%s error parsing certificate: %s\n", time.Now(),
+				err)
 			return
 		}
 
-		// Assume a 0-length CN means it isn't present (this isn't a good assumption)
-		if len(cert.Subject.CommonName) == 0 {
-			return
-		}
+		// Assume a 0-length CN means it isn't present (this might not be a good
+		// assumption)
+		commonNamePresent := len(cert.Subject.CommonName) != 0
 
 		// Filter out certs issued before 2013 or that have already
 		// expired.
@@ -146,8 +149,10 @@ func main() {
 			return
 		}
 
-		cnAsPunycode, error := idna.ToASCII(cert.Subject.CommonName)
-		if error != nil {
+		cnAsPunycode, punycodeErr := idna.ToASCII(cert.Subject.CommonName)
+		if punycodeErr != nil {
+			fmt.Fprintf(os.Stderr, "%s error converting to punycode: %s\n",
+				time.Now(), punycodeErr)
 			return
 		}
 
@@ -163,10 +168,16 @@ func main() {
 			}
 		} else {
 			for _, san := range cert.DNSNames {
-				if error == nil && strings.EqualFold(san, cnAsPunycode) {
+				if punycodeErr == nil && strings.EqualFold(san, cnAsPunycode) {
 					missingCNinSAN = false
 				}
 			}
+		}
+
+		// If there isn't a common name, it can't be missing from the
+		// subject alternative names.
+		if !commonNamePresent {
+			missingCNinSAN = false
 		}
 
 		// BR 9.4.1: Validity period is longer than 5 years.  This
