@@ -139,6 +139,8 @@ func main() {
 
 	out, err := os.OpenFile(jsonFile, os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to open JSON output file %s: %s\n",
+			jsonFile, err)
 		flag.PrintDefaults()
 	}
 
