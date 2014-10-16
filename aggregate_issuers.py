@@ -23,6 +23,7 @@ def main():
     issuer = c["Issuer"]
     if not issuer in issuers:
       issuers[issuer] = { "DeprecatedVersion": 0,
+                          "DeprecatedSignatureAlgorithm": 0,
                           "ExpTooSmall": 0,
                           "IsCA": 0,
                           "KeyTooShort": 0,
@@ -30,6 +31,8 @@ def main():
                           "ValidPeriodTooLong": 0 }
     if c["DeprecatedVersion"]:
       issuers[issuer]["DeprecatedVersion"] += 1
+    if c["DeprecatedSignatureAlgorithm"]:
+      issuers[issuer]["DeprecatedSignatureAlgorithm"] += 1
     if c["ExpTooSmall"]:
       issuers[issuer]["ExpTooSmall"] += 1
     if c["IsCA"]:
@@ -41,16 +44,18 @@ def main():
     if c["ValidPeriodTooLong"]:
       issuers[issuer]["ValidPeriodTooLong"] += 1
 
-  f_out.write("issuer,deprecatedVersion,expTooSmall,isCA,keyTooShort,missingCNinSAN,validPeriodTooLong,n_violations\n");
+  f_out.write("issuer,deprecatedVersion,deprecatedSignatureAlgorithm,expTooSmall,isCA,keyTooShort,missingCNinSAN,validPeriodTooLong,n_violations\n");
   for issuer in issuers:
     n_violations = (issuers[issuer]["DeprecatedVersion"] +
+          issuers[issuer]["DeprecatedSignatureAlgorithm"] +
           issuers[issuer]["ExpTooSmall"] +
           issuers[issuer]["KeyTooShort"] +
           issuers[issuer]["MissingCNinSAN"] +
           issuers[issuer]["ValidPeriodTooLong"])
-    f_out.write("%s,%d,%d,%d,%d,%d,%d,%d\n" % (
-                issuer.encode('utf-8'),
+    f_out.write("%s,%d,%d,%d,%d,%d,%d,%d,%d\n" % (
+                issuer.encode('utf-8').replace(",", " - "),
                 issuers[issuer]["DeprecatedVersion"],
+                issuers[issuer]["DeprecatedSignatureAlgorithm"],
                 issuers[issuer]["ExpTooSmall"],
                 issuers[issuer]["IsCA"],
                 issuers[issuer]["KeyTooShort"],
