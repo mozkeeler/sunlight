@@ -23,7 +23,7 @@ func timeToJSONString(t time.Time) string {
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintf(os.Stderr, "Usage: %s <log entries file> [uint64 limit]\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Usage: %s <log entries file> [uint64 max_entries_to_read]\n", os.Args[0])
 		os.Exit(1)
 	}
 	fileName := os.Args[1]
