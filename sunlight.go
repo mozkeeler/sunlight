@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/monicachew/alexa"
 	"github.com/monicachew/certificatetransparency"
 	"net"
@@ -65,7 +66,7 @@ func main() {
                                      keySize integer, expTooSmall bool,
                                      exp integer, signatureAlgorithm integer,
                                      version integer, dnsNames string,
-                                     ipAddresses string);
+                                     ipAddresses string, maxReputation float);
   `
 
 	_, err = db.Exec(createTables)
@@ -87,8 +88,8 @@ func main() {
                                    deprecatedVersion, missingCNinSAN,
                                    keyTooShort, keySize, expTooSmall, exp,
                                    signatureAlgorithm, version, dnsNames,
-                                   ipAddresses)
-              values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                   ipAddresses, maxReputation)
+              values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `
 	insertEntryStatement, err := tx.Prepare(insertEntry)
 	if err != nil {
@@ -129,6 +130,7 @@ func main() {
 		IsCA                         bool
 		DnsNames                     []string
 		IpAddresses                  []string
+		MaxReputation                float32
 	}
 
 	fmt.Fprintf(os.Stdout, "{\"Certs\":[")
@@ -216,7 +218,7 @@ func main() {
 			}
 		}
 
-		maxReputation := a.GetReputation(cert.Subject.CommonName)
+		maxReputation, _ := a.GetReputation(cert.Subject.CommonName)
 		for _, host := range cert.DNSNames {
 			reputation, _ := a.GetReputation(host)
 			if reputation > maxReputation {
@@ -273,7 +275,8 @@ func main() {
 				summary.ExpTooSmall, summary.Exp,
 				summary.SignatureAlgorithm,
 				summary.Version, dnsNamesAsString,
-				ipAddressesAsString)
+				ipAddressesAsString,
+				summary.MaxReputation)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Failed to insert entry: %s\n", err)
 				os.Exit(1)
