@@ -36,7 +36,6 @@ func main() {
 
 	now := time.Now()
 	fmt.Fprintf(os.Stderr, "Starting %s\n", time.Now())
-	fmt.Fprintf(os.Stderr, "testing go fmt pre-commit hook")
 	in, err := os.Open(fileName)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to open entries file: %s\n", err)
