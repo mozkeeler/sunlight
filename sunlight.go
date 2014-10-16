@@ -7,7 +7,9 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"flag"
 	"fmt"
+	"github.com/monicachew/alexa"
 	"github.com/monicachew/certificatetransparency"
 	"net"
 	"os"
@@ -17,12 +19,20 @@ import (
 	"time"
 )
 
+// Flags
+var top1M string
+
+func init() {
+	flag.StringVar(&top1M, "alexa_file", "top-1m.csv", "CSV containing <rank, domain>")
+}
+
 func timeToJSONString(t time.Time) string {
 	const layout = "Jan 2 2006"
 	return t.Format(layout)
 }
 
 func main() {
+	flag.Parse()
 	if len(os.Args) < 2 {
 		fmt.Fprintf(os.Stderr, "Usage: %s <log entries file> [uint64 max_entries_to_read]\n", os.Args[0])
 		os.Exit(1)
@@ -33,6 +43,9 @@ func main() {
 	if len(os.Args) == 3 {
 		limit, _ = strconv.ParseUint(os.Args[2], 0, 64)
 	}
+
+	var a alexa.AlexaRank
+	a.Init(top1M)
 
 	now := time.Now()
 	fmt.Fprintf(os.Stderr, "Starting %s\n", time.Now())
@@ -153,6 +166,14 @@ func main() {
 			}
 		}
 
+		maxReputation := a.GetReputation(cert.Subject.CommonName)
+		for _, host := range cert.DNSNames {
+			reputation, _ := a.GetReputation(host)
+			if reputation > maxReputation {
+				maxReputation = reputation
+			}
+		}
+
 		if missingCNinSAN || validPeriodTooLong || deprecatedSignatureAlgorithm ||
 			deprecatedVersion || keyTooShort || expTooSmall {
 			sha256hasher := sha256.New()
@@ -176,6 +197,7 @@ func main() {
 				IsCA:                         cert.BasicConstraintsValid && cert.IsCA,
 				DnsNames:                     cert.DNSNames,
 				IpAddresses:                  nil,
+				MaxReputation:                maxReputation,
 			}
 			for _, address := range cert.IPAddresses {
 				summary.IpAddresses = append(summary.IpAddresses, address.String())
