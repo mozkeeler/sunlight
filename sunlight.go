@@ -23,7 +23,7 @@ func timeToJSONString(t time.Time) string {
 }
 
 func main() {
-          fmt.Fprintf(os.Stderr, "testing go fmt pre-commit hook")
+	fmt.Fprintf(os.Stderr, "testing go fmt pre-commit hook")
 	if len(os.Args) < 2 {
 		fmt.Fprintf(os.Stderr, "Usage: %s <log entries file> [uint64 max_entries_to_read]\n", os.Args[0])
 		os.Exit(1)
