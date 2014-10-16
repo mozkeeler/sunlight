@@ -11,6 +11,7 @@ import (
 	"github.com/monicachew/certificatetransparency"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -21,11 +22,16 @@ func timeToJSONString(t time.Time) string {
 }
 
 func main() {
-	if len(os.Args) != 2 {
-		fmt.Fprintf(os.Stderr, "Usage: %s <log entries file>\n", os.Args[0])
+	if len(os.Args) < 2 {
+		fmt.Fprintf(os.Stderr, "Usage: %s <log entries file> [uint64 max_entries_to_read]\n", os.Args[0])
 		os.Exit(1)
 	}
 	fileName := os.Args[1]
+	// No limit on entries read
+	var limit uint64 = 0
+	if len(os.Args) == 3 {
+		limit, _ = strconv.ParseUint(os.Args[2], 0, 64)
+	}
 
 	now := time.Now()
 	fmt.Fprintf(os.Stderr, "Starting %s\n", time.Now())
@@ -174,7 +180,7 @@ func main() {
 			}
 			certs.Certs = append(certs.Certs, summary)
 		}
-	})
+	}, limit)
 	b, err := json.Marshal(certs)
 	if err == nil {
 		os.Stdout.Write(b)
