@@ -30,7 +30,7 @@ func init() {
 	flag.StringVar(&ctLog, "ct_log", "ct_entries.log", "File containing CT log")
 	flag.StringVar(&jsonFile, "json_file", "certs.json", "JSON summary output")
 	flag.Uint64Var(&maxEntries, "max_entries", 0, "Max entries (0 means all)")
-	runtime.GOMAXPROCS(runtime.NuMCPUS())
+	runtime.GOMAXPROCS(runtime.NumCPU())
 }
 
 func main() {
