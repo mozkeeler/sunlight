@@ -148,5 +148,10 @@ func CalculateCertSummary(cert *x509.Certificate, ranker *alexa.AlexaRank) (resu
 	sha256hasher.Write(cert.Raw)
 	summary.Sha256Fingerprint = base64.StdEncoding.EncodeToString(sha256hasher.Sum(nil))
 
+	// DNS names and IP addresses
+	summary.DnsNames = cert.DNSNames
+	for _, address := range cert.IPAddresses {
+		summary.IpAddresses = append(summary.IpAddresses, address.String())
+	}
 	return &summary, nil
 }

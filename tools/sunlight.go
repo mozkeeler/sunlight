@@ -127,9 +127,6 @@ func main() {
 
 		summary, _ := sunlight.CalculateCertSummary(cert, &ranker)
 		if summary != nil && summary.ViolatesBR() {
-			for _, address := range cert.IPAddresses {
-				summary.IpAddresses = append(summary.IpAddresses, address.String())
-			}
 			dnsNamesAsString, err := json.Marshal(summary.DnsNames)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Failed to convert to JSON: %s\n", err)
