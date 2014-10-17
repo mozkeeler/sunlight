@@ -6,9 +6,12 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
+	"fmt"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/monicachew/alexa"
+	"io/ioutil"
 	"net"
+	"os"
 	"strings"
 	"time"
 )
@@ -34,6 +37,7 @@ type CertSummary struct {
 	DnsNames                     []string
 	IpAddresses                  []string
 	MaxReputation                float32
+	IssuerInMozillaDB            bool
 }
 
 type IssuerReputation struct {
@@ -52,6 +56,7 @@ type IssuerReputation struct {
 	ExpTooSmallScore                  float32
 	IsCA                              uint64
 	Reputation                        float32
+	InMozillaDB                       bool
 }
 
 func TimeToJSONString(t time.Time) string {
@@ -65,7 +70,17 @@ func (summary *CertSummary) ViolatesBR() (retval bool) {
 		summary.KeyTooShort || summary.ExpTooSmall
 }
 
-func CalculateCertSummary(cert *x509.Certificate, ranker *alexa.AlexaRank) (result *CertSummary, err error) {
+func containsIssuerInRootList(certChain []*x509.Certificate, rootCAList []string) bool {
+	for _, cert := range certChain {
+		if stringInSlice(cert.Subject.CommonName, rootCAList) {
+			return true
+		}
+	}
+	return false
+}
+
+func CalculateCertSummary(cert *x509.Certificate, ranker *alexa.AlexaRank,
+	certChain []*x509.Certificate, rootCAList []string) (result *CertSummary, err error) {
 	summary := CertSummary{}
 	// Assume a 0-length CN means it isn't present (this isn't a good assumption)
 	if len(cert.Subject.CommonName) == 0 {
@@ -154,5 +169,30 @@ func CalculateCertSummary(cert *x509.Certificate, ranker *alexa.AlexaRank) (resu
 	for _, address := range cert.IPAddresses {
 		summary.IpAddresses = append(summary.IpAddresses, address.String())
 	}
+
+	summary.IssuerInMozillaDB = containsIssuerInRootList(certChain, rootCAList)
+
 	return &summary, nil
+}
+
+func stringInSlice(a string, list []string) bool {
+	for _, b := range list {
+		if a == b {
+			return true
+		}
+	}
+	return false
+}
+
+// Takes the name of a file containing newline-delimited Subject Common Names
+// that each correspond to a certificate in Mozilla's root CA program.
+// Returns these names as a slice.
+func ReadRootCAList(filename string) []string {
+	caStringBytes, err := ioutil.ReadFile(filename)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to open root CA list at %s: %s\n",
+			filename, err)
+		os.Exit(1)
+	}
+	return strings.Split(string(caStringBytes), "\n")
 }
