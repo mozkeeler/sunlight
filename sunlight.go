@@ -8,16 +8,33 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"flag"
 	"fmt"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/monicachew/alexa"
 	"github.com/monicachew/certificatetransparency"
 	"net"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 )
+
+// Flags
+var alexaFile string
+var dbFile string
+var ctLog string
+var jsonFile string
+var maxEntries uint64
+
+func init() {
+	flag.StringVar(&alexaFile, "alexa_file", "top-1m.csv",
+		"CSV containing <rank, domain>")
+	flag.StringVar(&dbFile, "db_file", "BRs.db", "File for creating sqlite DB")
+	flag.StringVar(&ctLog, "ct_log", "ct_entries.log", "File containing CT log")
+	flag.StringVar(&jsonFile, "json_file", "certs.json", "JSON summary output")
+	flag.Uint64Var(&maxEntries, "max_entries", 0, "Max entries (0 means all)")
+}
 
 func timeToJSONString(t time.Time) string {
 	const layout = "Jan 2 2006"
@@ -25,20 +42,18 @@ func timeToJSONString(t time.Time) string {
 }
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Fprintf(os.Stderr, "Usage: %s <log entries file> [uint64 max_entries_to_read]\n", os.Args[0])
+	flag.Parse()
+	if flag.NArg() != 0 {
+		flag.PrintDefaults()
 		os.Exit(1)
 	}
-	fileName := os.Args[1]
-	// No limit on entries read
-	var limit uint64 = 0
-	if len(os.Args) == 3 {
-		limit, _ = strconv.ParseUint(os.Args[2], 0, 64)
-	}
 
-	db, err := sql.Open("sqlite3", "./BRs.db")
+	var ranker alexa.AlexaRank
+	ranker.Init(alexaFile)
+	db, err := sql.Open("sqlite3", dbFile)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to open BRs.db: %s\n", err)
+		fmt.Fprintf(os.Stderr, "Failed to open %s: %s\n", dbFile, err)
+		flag.PrintDefaults()
 		os.Exit(1)
 	}
 	defer db.Close()
@@ -54,7 +69,7 @@ func main() {
                                      keySize integer, expTooSmall bool,
                                      exp integer, signatureAlgorithm integer,
                                      version integer, dnsNames string,
-                                     ipAddresses string);
+                                     ipAddresses string, maxReputation float);
   `
 
 	_, err = db.Exec(createTables)
@@ -76,8 +91,8 @@ func main() {
                                    deprecatedVersion, missingCNinSAN,
                                    keyTooShort, keySize, expTooSmall, exp,
                                    signatureAlgorithm, version, dnsNames,
-                                   ipAddresses)
-              values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                   ipAddresses, maxReputation)
+              values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `
 	insertEntryStatement, err := tx.Prepare(insertEntry)
 	if err != nil {
@@ -88,9 +103,10 @@ func main() {
 
 	now := time.Now()
 	fmt.Fprintf(os.Stderr, "Starting %s\n", time.Now())
-	in, err := os.Open(fileName)
+	in, err := os.Open(ctLog)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to open entries file: %s\n", err)
+		flag.PrintDefaults()
 		os.Exit(1)
 	}
 	defer in.Close()
@@ -118,9 +134,17 @@ func main() {
 		IsCA                         bool
 		DnsNames                     []string
 		IpAddresses                  []string
+		MaxReputation                float32
 	}
 
-	fmt.Fprintf(os.Stdout, "{\"Certs\":[")
+	out, err := os.OpenFile(jsonFile, os.O_RDWR|os.O_CREATE, 0666)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to open JSON output file %s: %s\n",
+			jsonFile, err)
+		flag.PrintDefaults()
+	}
+
+	fmt.Fprintf(out, "{\"Certs\":[")
 	firstOutLock := new(sync.Mutex)
 	firstOut := true
 
@@ -216,6 +240,14 @@ func main() {
 			}
 		}
 
+		maxReputation, _ := ranker.GetReputation(cert.Subject.CommonName)
+		for _, host := range cert.DNSNames {
+			reputation, _ := ranker.GetReputation(host)
+			if reputation > maxReputation {
+				maxReputation = reputation
+			}
+		}
+
 		if missingCNinSAN || validPeriodTooLong || deprecatedSignatureAlgorithm ||
 			deprecatedVersion || keyTooShort || expTooSmall {
 			sha256hasher := sha256.New()
@@ -239,6 +271,7 @@ func main() {
 				IsCA:                         cert.BasicConstraintsValid && cert.IsCA,
 				DnsNames:                     cert.DNSNames,
 				IpAddresses:                  nil,
+				MaxReputation:                maxReputation,
 			}
 			for _, address := range cert.IPAddresses {
 				summary.IpAddresses = append(summary.IpAddresses, address.String())
@@ -264,7 +297,8 @@ func main() {
 				summary.ExpTooSmall, summary.Exp,
 				summary.SignatureAlgorithm,
 				summary.Version, dnsNamesAsString,
-				ipAddressesAsString)
+				ipAddressesAsString,
+				summary.MaxReputation)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Failed to insert entry: %s\n", err)
 				os.Exit(1)
@@ -276,8 +310,8 @@ func main() {
 				if firstOut {
 					separator = "\n"
 				}
-				fmt.Fprintf(os.Stdout, "%s", separator)
-				os.Stdout.Write(marshalled)
+				fmt.Fprintf(out, "%s", separator)
+				out.Write(marshalled)
 				firstOut = false
 				firstOutLock.Unlock()
 			} else {
@@ -285,7 +319,7 @@ func main() {
 				os.Exit(1)
 			}
 		}
-	}, limit)
+	}, maxEntries)
 	tx.Commit()
-	fmt.Fprintf(os.Stdout, "]}\n")
+	fmt.Fprintf(out, "]}\n")
 }
