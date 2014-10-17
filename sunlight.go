@@ -89,9 +89,9 @@ func (score *IssuerReputationScore) Finish(normalizedCount uint64,
 	rawCount uint64) {
 	score.NormalizedScore /= float32(normalizedCount)
 	// We want low scores to be bad and high scores to be good, similar to Alexa
-	//score.NormalizedScore = 1.0 - score.NormalizedScore
+	score.NormalizedScore = 1.0 - score.NormalizedScore
 	score.RawScore /= float32(rawCount)
-	//score.RawScore = 1.0 - score.RawScore
+	score.RawScore = 1.0 - score.RawScore
 }
 
 func (issuer *IssuerReputation) Update(summary *CertSummary) {
@@ -158,6 +158,8 @@ func CalculateCertSummary(cert *x509.Certificate, ranker *alexa.AlexaRank) (resu
 	summary.NotBefore = TimeToJSONString(cert.NotBefore)
 	summary.NotAfter = TimeToJSONString(cert.NotAfter)
 	summary.IsCA = cert.IsCA
+	summary.Version = cert.Version
+	summary.SignatureAlgorithm = cert.SignatureAlgorithm
 
 	// BR 9.4.1: Validity period is longer than 5 years.  This
 	// should be restricted to certs that don't have CA:True

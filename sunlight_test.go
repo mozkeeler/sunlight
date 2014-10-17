@@ -41,7 +41,7 @@ func TestInit(t *testing.T) {
 	if issuer.NormalizedCount != 1 {
 		t.Error("Should have normalized count of 1")
 	}
-	if issuer.ValidPeriodTooLong.NormalizedScore != 0.1 {
+	if issuer.ValidPeriodTooLong.NormalizedScore != 0.9 {
 		t.Error("Should have score of 0.1")
 	}
 	b, _ := json.MarshalIndent(issuer, "", "  ")
