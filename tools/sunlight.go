@@ -91,6 +91,18 @@ func main() {
 	}
 	defer insertEntryStatement.Close()
 
+	/*
+	   	insertIssuer := `
+	     insert into issuerReputation(issuer, sha256Fingerprint, notBefore,
+	                                      notAfter, validPeriodTooLong,
+	                                      deprecatedSignatureAlgorithm,
+	                                      deprecatedVersion, missingCNinSAN,
+	                                      keyTooShort, keySize, expTooSmall, exp,
+	                                      signatureAlgorithm, version, dnsNames,
+	                                      ipAddresses, maxReputation)
+	                 values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	     `
+	*/
 	fmt.Fprintf(os.Stderr, "Starting %s\n", time.Now())
 	in, err := os.Open(ctLog)
 	if err != nil {
@@ -113,6 +125,7 @@ func main() {
 	firstOutLock := new(sync.Mutex)
 	firstOut := true
 
+	issuers := make(map[string]*sunlight.IssuerReputation)
 	entriesFile.Map(func(ent *certificatetransparency.EntryAndPosition, err error) {
 		if err != nil {
 			return
@@ -123,8 +136,22 @@ func main() {
 			return
 		}
 
+		// Filter out certs issued before 2013 or that have already
+		// expired.
+		now := time.Now()
+		if cert.NotBefore.Before(time.Date(2013, 1, 1, 0, 0, 0, 0, time.UTC)) ||
+			cert.NotAfter.Before(now) {
+			return
+		}
 
 		summary, _ := sunlight.CalculateCertSummary(cert, &ranker)
+		if issuers[cert.Issuer.CommonName] == nil {
+			issuers[cert.Issuer.CommonName] = sunlight.NewIssuerReputation(
+				cert.Issuer.CommonName)
+		}
+		// Update issuer reputation whether or not the cert violates baseline
+		// requirements.
+		issuers[cert.Issuer.CommonName].Update(summary)
 		if summary != nil && summary.ViolatesBR() {
 			dnsNamesAsString, err := json.Marshal(summary.DnsNames)
 			if err != nil {
@@ -172,4 +199,8 @@ func main() {
 	}, maxEntries)
 	tx.Commit()
 	fmt.Fprintf(out, "]}\n")
+	// Normalize all our scores
+	for _, issuer := range issuers {
+		issuer.Finish()
+	}
 }
