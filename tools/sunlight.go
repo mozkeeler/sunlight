@@ -62,6 +62,25 @@ func main() {
                                      exp integer, signatureAlgorithm integer,
                                      version integer, dnsNames string,
                                      ipAddresses string, maxReputation float);
+  drop table if exists issuerReputation;
+	create table issuerReputation (issuer text,
+				validPeriodTooLongNormalizedScore float,
+				validPeriodTooLongRawscore float,
+				deprecatedVersionNormalizedScore float,
+				deprecatedVersionRawScore float,
+				deprecatedSignatureAlgorithmNormalizedScore float,
+				deprecatedSignatureAlgorithmRawScore float,
+				missingCNinSANNormalizedScore float,
+				missingCNinSANRawScore float,
+				keyTooShortNormalizedScore float,
+				keyTooShortRawScore float,
+				expTooSmallNormalizedScore float,
+				expTooSmallRawScore float,
+				normalizedScore float,
+				rawScore float,
+				normalizedCount integer,
+				rawCount integer)
+
   `
 
 	_, err = db.Exec(createTables)
@@ -93,6 +112,26 @@ func main() {
 	}
 	defer insertEntryStatement.Close()
 
+	insertIssuer := `
+	     insert into issuerReputation(issuer,
+				validPeriodTooLongNormalizedScore, validPeriodTooLongRawscore,
+				deprecatedVersionNormalizedScore, deprecatedVersionRawScore,
+				deprecatedSignatureAlgorithmNormalizedScore,
+				deprecatedSignatureAlgorithmRawScore,
+				missingCNinSANNormalizedScore, missingCNinSANRawScore,
+				keyTooShortNormalizedScore, keyTooShortRawScore,
+				expTooSmallNormalizedScore, expTooSmallRawScore,
+				normalizedScore, rawScore,
+				normalizedCount, rawCount)
+	                 values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	     `
+	insertIssuerStatement, err := tx.Prepare(insertIssuer)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create prepared statement: %s\n", err)
+		os.Exit(1)
+	}
+	defer insertIssuerStatement.Close()
+
 	fmt.Fprintf(os.Stderr, "Starting %s\n", time.Now())
 	in, err := os.Open(ctLog)
 	if err != nil {
@@ -115,6 +154,7 @@ func main() {
 	firstOutLock := new(sync.Mutex)
 	firstOut := true
 
+	issuers := make(map[string]*sunlight.IssuerReputation)
 	entriesFile.Map(func(ent *certificatetransparency.EntryAndPosition, err error) {
 		if err != nil {
 			return
@@ -125,7 +165,22 @@ func main() {
 			return
 		}
 
+		// Filter out certs issued before 2013 or that have already
+		// expired.
+		now := time.Now()
+		if cert.NotBefore.Before(time.Date(2013, 1, 1, 0, 0, 0, 0, time.UTC)) ||
+			cert.NotAfter.Before(now) {
+			return
+		}
+
 		summary, _ := sunlight.CalculateCertSummary(cert, &ranker)
+		if issuers[cert.Issuer.CommonName] == nil {
+			issuers[cert.Issuer.CommonName] = sunlight.NewIssuerReputation(
+				cert.Issuer.CommonName)
+		}
+		// Update issuer reputation whether or not the cert violates baseline
+		// requirements.
+		issuers[cert.Issuer.CommonName].Update(summary)
 		if summary != nil && summary.ViolatesBR() {
 			dnsNamesAsString, err := json.Marshal(summary.DnsNames)
 			if err != nil {
@@ -171,6 +226,31 @@ func main() {
 			}
 		}
 	}, maxEntries)
-	tx.Commit()
 	fmt.Fprintf(out, "]}\n")
+	// Normalize all our scores
+	for _, issuer := range issuers {
+		issuer.Finish()
+		_, err = insertIssuerStatement.Exec(issuer.Issuer,
+			issuer.ValidPeriodTooLong.NormalizedScore,
+			issuer.ValidPeriodTooLong.RawScore,
+			issuer.DeprecatedVersion.NormalizedScore,
+			issuer.DeprecatedVersion.RawScore,
+			issuer.DeprecatedSignatureAlgorithm.NormalizedScore,
+			issuer.DeprecatedSignatureAlgorithm.RawScore,
+			issuer.MissingCNinSAN.NormalizedScore,
+			issuer.MissingCNinSAN.RawScore,
+			issuer.KeyTooShort.NormalizedScore,
+			issuer.KeyTooShort.RawScore,
+			issuer.ExpTooSmall.NormalizedScore,
+			issuer.ExpTooSmall.RawScore,
+			issuer.NormalizedScore,
+			issuer.RawScore,
+			issuer.NormalizedCount,
+			issuer.RawCount)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to insert entry: %s\n", err)
+			os.Exit(1)
+		}
+	}
+	tx.Commit()
 }
