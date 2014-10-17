@@ -11,7 +11,7 @@ import (
 	"github.com/monicachew/certificatetransparency"
 	"github.com/mozkeeler/sunlight"
 	"os"
-  "runtime"
+	"runtime"
 	"sync"
 	"time"
 )
@@ -32,7 +32,7 @@ func init() {
 	flag.StringVar(&jsonFile, "json_file", "certs.json", "JSON summary output")
 	flag.Uint64Var(&maxEntries, "max_entries", 0, "Max entries (0 means all)")
 	flag.StringVar(&rootCAFile, "rootCA_file", "rootCAList.txt", "list of root CA CNs")
-  runtime.GOMAXPROCS(runtime.NumCPU())
+	runtime.GOMAXPROCS(runtime.NumCPU())
 }
 
 func main() {
@@ -65,6 +65,24 @@ func main() {
                                      version integer, dnsNames string,
                                      ipAddresses string, maxReputation float,
                                      issuerInMozillaDB bool);
+  drop table if exists issuerReputation;
+	create table issuerReputation (issuer text,
+				validPeriodTooLongNormalizedScore float,
+				validPeriodTooLongRawscore float,
+				deprecatedVersionNormalizedScore float,
+				deprecatedVersionRawScore float,
+				deprecatedSignatureAlgorithmNormalizedScore float,
+				deprecatedSignatureAlgorithmRawScore float,
+				missingCNinSANNormalizedScore float,
+				missingCNinSANRawScore float,
+				keyTooShortNormalizedScore float,
+				keyTooShortRawScore float,
+				expTooSmallNormalizedScore float,
+				expTooSmallRawScore float,
+				normalizedScore float,
+				rawScore float,
+				normalizedCount integer,
+				rawCount integer)
   `
 
 	_, err = db.Exec(createTables)
@@ -97,6 +115,26 @@ func main() {
 	}
 	defer insertEntryStatement.Close()
 
+	insertIssuer := `
+	     insert into issuerReputation(issuer,
+				validPeriodTooLongNormalizedScore, validPeriodTooLongRawscore,
+				deprecatedVersionNormalizedScore, deprecatedVersionRawScore,
+				deprecatedSignatureAlgorithmNormalizedScore,
+				deprecatedSignatureAlgorithmRawScore,
+				missingCNinSANNormalizedScore, missingCNinSANRawScore,
+				keyTooShortNormalizedScore, keyTooShortRawScore,
+				expTooSmallNormalizedScore, expTooSmallRawScore,
+				normalizedScore, rawScore,
+				normalizedCount, rawCount)
+	                 values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	     `
+	insertIssuerStatement, err := tx.Prepare(insertIssuer)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create prepared statement: %s\n", err)
+		os.Exit(1)
+	}
+	defer insertIssuerStatement.Close()
+
 	fmt.Fprintf(os.Stderr, "Starting %s\n", time.Now())
 	in, err := os.Open(ctLog)
 	if err != nil {
@@ -119,6 +157,7 @@ func main() {
 	firstOutLock := new(sync.Mutex)
 	firstOut := true
 
+	issuers := make(map[string]*sunlight.IssuerReputation)
 	entriesFile.Map(func(ent *certificatetransparency.EntryAndPosition, err error) {
 		if err != nil {
 			return
@@ -129,15 +168,31 @@ func main() {
 			return
 		}
 
-    certList := make([]*x509.Certificate, 0)
-    for _, certBytes := range ent.Entry.ExtraCerts {
-      nextCert, err := x509.ParseCertificate(certBytes)
-      if err != nil && nextCert != nil { // without nextCert != nil, this crashes
-        certList = append(certList, nextCert)
-      }
-    }
-    rootCAList := sunlight.ReadRootCAList(rootCAFile)
-		summary, _ := sunlight.CalculateCertSummary(cert, &ranker, certList, rootCAList)
+		// Filter out certs issued before 2013 or that have already
+		// expired.
+		now := time.Now()
+		if cert.NotBefore.Before(time.Date(2013, 1, 1, 0, 0, 0, 0, time.UTC)) ||
+			cert.NotAfter.Before(now) {
+			return
+		}
+
+		certList := make([]*x509.Certificate, 0)
+		for _, certBytes := range ent.Entry.ExtraCerts {
+			nextCert, err := x509.ParseCertificate(certBytes)
+			if err != nil && nextCert != nil { // without nextCert != nil, this crashes
+				certList = append(certList, nextCert)
+			}
+		}
+		rootCAList := sunlight.ReadRootCAList(rootCAFile)
+
+		summary, _ := sunlight.CalculateCertSummary(cert, &ranker)
+		if issuers[cert.Issuer.CommonName] == nil {
+			issuers[cert.Issuer.CommonName] = sunlight.NewIssuerReputation(
+				cert.Issuer.CommonName)
+		}
+		// Update issuer reputation whether or not the cert violates baseline
+		// requirements.
+		issuers[cert.Issuer.CommonName].Update(summary)
 		if summary != nil && summary.ViolatesBR() {
 			dnsNamesAsString, err := json.Marshal(summary.DnsNames)
 			if err != nil {
@@ -162,7 +217,7 @@ func main() {
 				summary.Version, dnsNamesAsString,
 				ipAddressesAsString,
 				summary.MaxReputation,
-        summary.IssuerInMozillaDB)
+				summary.IssuerInMozillaDB)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Failed to insert entry: %s\n", err)
 				os.Exit(1)
@@ -184,6 +239,31 @@ func main() {
 			}
 		}
 	}, maxEntries)
-	tx.Commit()
 	fmt.Fprintf(out, "]}\n")
+	// Normalize all our scores
+	for _, issuer := range issuers {
+		issuer.Finish()
+		_, err = insertIssuerStatement.Exec(issuer.Issuer,
+			issuer.ValidPeriodTooLong.NormalizedScore,
+			issuer.ValidPeriodTooLong.RawScore,
+			issuer.DeprecatedVersion.NormalizedScore,
+			issuer.DeprecatedVersion.RawScore,
+			issuer.DeprecatedSignatureAlgorithm.NormalizedScore,
+			issuer.DeprecatedSignatureAlgorithm.RawScore,
+			issuer.MissingCNinSAN.NormalizedScore,
+			issuer.MissingCNinSAN.RawScore,
+			issuer.KeyTooShort.NormalizedScore,
+			issuer.KeyTooShort.RawScore,
+			issuer.ExpTooSmall.NormalizedScore,
+			issuer.ExpTooSmall.RawScore,
+			issuer.NormalizedScore,
+			issuer.RawScore,
+			issuer.NormalizedCount,
+			issuer.RawCount)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to insert entry: %s\n", err)
+			os.Exit(1)
+		}
+	}
+	tx.Commit()
 }
