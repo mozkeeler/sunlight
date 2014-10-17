@@ -11,6 +11,7 @@ import (
 	"github.com/monicachew/certificatetransparency"
 	"github.com/mozkeeler/sunlight"
 	"os"
+  "runtime"
 	"sync"
 	"time"
 )
@@ -21,6 +22,7 @@ var dbFile string
 var ctLog string
 var jsonFile string
 var maxEntries uint64
+var rootCAFile string
 
 func init() {
 	flag.StringVar(&alexaFile, "alexa_file", "top-1m.csv",
@@ -29,6 +31,8 @@ func init() {
 	flag.StringVar(&ctLog, "ct_log", "ct_entries.log", "File containing CT log")
 	flag.StringVar(&jsonFile, "json_file", "certs.json", "JSON summary output")
 	flag.Uint64Var(&maxEntries, "max_entries", 0, "Max entries (0 means all)")
+	flag.StringVar(&rootCAFile, "rootCA_file", "rootCAList.txt", "list of root CA CNs")
+  runtime.GOMAXPROCS(runtime.NumCPU())
 }
 
 func main() {
@@ -59,7 +63,8 @@ func main() {
                                      keySize integer, expTooSmall bool,
                                      exp integer, signatureAlgorithm integer,
                                      version integer, dnsNames string,
-                                     ipAddresses string, maxReputation float);
+                                     ipAddresses string, maxReputation float,
+                                     issuerInMozillaDB bool);
   `
 
 	_, err = db.Exec(createTables)
@@ -81,8 +86,9 @@ func main() {
                                    deprecatedVersion, missingCNinSAN,
                                    keyTooShort, keySize, expTooSmall, exp,
                                    signatureAlgorithm, version, dnsNames,
-                                   ipAddresses, maxReputation)
-              values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                   ipAddresses, maxReputation,
+                                   issuerInMozillaDB)
+              values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `
 	insertEntryStatement, err := tx.Prepare(insertEntry)
 	if err != nil {
@@ -123,8 +129,15 @@ func main() {
 			return
 		}
 
-
-		summary, _ := sunlight.CalculateCertSummary(cert, &ranker)
+    certList := make([]*x509.Certificate, 0)
+    for _, certBytes := range ent.Entry.ExtraCerts {
+      nextCert, err := x509.ParseCertificate(certBytes)
+      if err != nil && nextCert != nil { // without nextCert != nil, this crashes
+        certList = append(certList, nextCert)
+      }
+    }
+    rootCAList := sunlight.ReadRootCAList(rootCAFile)
+		summary, _ := sunlight.CalculateCertSummary(cert, &ranker, certList, rootCAList)
 		if summary != nil && summary.ViolatesBR() {
 			dnsNamesAsString, err := json.Marshal(summary.DnsNames)
 			if err != nil {
@@ -148,7 +161,8 @@ func main() {
 				summary.SignatureAlgorithm,
 				summary.Version, dnsNamesAsString,
 				ipAddressesAsString,
-				summary.MaxReputation)
+				summary.MaxReputation,
+        summary.IssuerInMozillaDB)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Failed to insert entry: %s\n", err)
 				os.Exit(1)
