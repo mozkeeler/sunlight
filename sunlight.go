@@ -48,8 +48,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	var a alexa.AlexaRank
-	a.Init(alexaFile)
+	var ranker alexa.AlexaRank
+	ranker.Init(alexaFile)
 	db, err := sql.Open("sqlite3", dbFile)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to open %s: %s\n", dbFile, err)
@@ -229,9 +229,9 @@ func main() {
 			}
 		}
 
-		maxReputation, _ := a.GetReputation(cert.Subject.CommonName)
+		maxReputation, _ := ranker.GetReputation(cert.Subject.CommonName)
 		for _, host := range cert.DNSNames {
-			reputation, _ := a.GetReputation(host)
+			reputation, _ := ranker.GetReputation(host)
 			if reputation > maxReputation {
 				maxReputation = reputation
 			}
