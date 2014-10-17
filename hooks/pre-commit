@@ -1,4 +1,4 @@
 #!/bin/sh
 
-go fmt
+go fmt github.com/mozkeeler/sunlight/...
 git add -u
