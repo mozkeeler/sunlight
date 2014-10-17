@@ -155,10 +155,14 @@ func CalculateCertSummary(cert *x509.Certificate, ranker *alexa.AlexaRank) (resu
 	summary := CertSummary{}
 	summary.CN = cert.Subject.CommonName
 	summary.Issuer = cert.Issuer.CommonName
+	summary.NotBefore = TimeToJSONString(cert.NotBefore)
+	summary.NotAfter = TimeToJSONString(cert.NotAfter)
+	summary.IsCA = cert.IsCA
 
 	// BR 9.4.1: Validity period is longer than 5 years.  This
 	// should be restricted to certs that don't have CA:True
 	summary.ValidPeriodTooLong = false
+
 	if cert.NotAfter.After(cert.NotBefore.AddDate(5, 0, 7)) &&
 		(!cert.BasicConstraintsValid || (cert.BasicConstraintsValid && !cert.IsCA)) {
 		summary.ValidPeriodTooLong = true
