@@ -67,6 +67,7 @@ func (summary *CertSummary) ViolatesBR() (retval bool) {
 
 func CalculateCertSummary(cert *x509.Certificate, ranker *alexa.AlexaRank) (result *CertSummary, err error) {
 	summary := CertSummary{}
+	// Assume a 0-length CN means it isn't present (this isn't a good assumption)
 	if len(cert.Subject.CommonName) == 0 {
 		return
 	}

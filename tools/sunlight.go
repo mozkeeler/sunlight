@@ -123,7 +123,6 @@ func main() {
 			return
 		}
 
-		// Assume a 0-length CN means it isn't present (this isn't a good assumption)
 
 		summary, _ := sunlight.CalculateCertSummary(cert, &ranker)
 		if summary != nil && summary.ViolatesBR() {
