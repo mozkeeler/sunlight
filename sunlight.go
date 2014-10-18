@@ -79,18 +79,19 @@ func (summary *CertSummary) ViolatesBR() bool {
 		summary.KeyTooShort || summary.ExpTooSmall
 }
 
-func containsIssuerInRootList(certChain []*x509.Certificate, rootCAList []string) bool {
+func containsIssuerInRootList(certChain []*x509.Certificate, rootCAMap map[string]bool) bool {
 	for _, cert := range certChain {
-		if stringInSlice(cert.Subject.CommonName, rootCAList) {
+		if rootCAMap[cert.Subject.CommonName] {
 			return true
 		}
 	}
 	return false
 }
 
-func NewIssuerReputation(issuer string) *IssuerReputation {
+func NewIssuerReputation(issuer string, rootCAMap map[string]bool) *IssuerReputation {
 	reputation := new(IssuerReputation)
 	reputation.Issuer = issuer
+	reputation.InMozillaDB = rootCAMap[issuer]
 	return reputation
 }
 
@@ -165,7 +166,8 @@ func (issuer *IssuerReputation) Finish() {
 		issuer.ExpTooSmall.RawScore) / 6
 }
 
-func CalculateCertSummary(cert *x509.Certificate, ranker *alexa.AlexaRank) (result *CertSummary, err error) {
+func CalculateCertSummary(cert *x509.Certificate, ranker *alexa.AlexaRank,
+	certChain []*x509.Certificate, rootCAMap map[string]bool) (result *CertSummary, err error) {
 	summary := CertSummary{}
 	summary.CN = cert.Subject.CommonName
 	summary.Issuer = cert.Issuer.CommonName
@@ -229,7 +231,7 @@ func CalculateCertSummary(cert *x509.Certificate, ranker *alexa.AlexaRank) (resu
 		summary.IpAddresses = append(summary.IpAddresses, address.String())
 	}
 
-	summary.IssuerInMozillaDB = containsIssuerInRootList(certChain, rootCAList)
+	summary.IssuerInMozillaDB = containsIssuerInRootList(certChain, rootCAMap)
 
 	// Assume a 0-length CN means it isn't present (this isn't a good
 	// assumption). If the CN is missing, then it can't be missing CN in SAN.
@@ -264,24 +266,19 @@ func CalculateCertSummary(cert *x509.Certificate, ranker *alexa.AlexaRank) (resu
 	return &summary, nil
 }
 
-func stringInSlice(a string, list []string) bool {
-	for _, b := range list {
-		if a == b {
-			return true
-		}
-	}
-	return false
-}
-
 // Takes the name of a file containing newline-delimited Subject Common Names
 // that each correspond to a certificate in Mozilla's root CA program.
-// Returns these names as a slice.
-func ReadRootCAList(filename string) []string {
+// Returns these names as a map of string -> bool.
+func ReadRootCAMap(filename string) map[string]bool {
 	caStringBytes, err := ioutil.ReadFile(filename)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to open root CA list at %s: %s\n",
 			filename, err)
 		os.Exit(1)
 	}
-	return strings.Split(string(caStringBytes), "\n")
+	rootCAMap := make(map[string]bool)
+	for _, ca := range strings.Split(string(caStringBytes), "\n") {
+		rootCAMap[ca] = true
+	}
+	return rootCAMap
 }
