@@ -63,9 +63,8 @@ type IssuerReputation struct {
 	// Total count of certs issued by this issuer for domains in Alexa.
 	NormalizedCount uint64
 	// Total count of certs issued by this issuer
-	RawCount    uint64
-	done        bool
-	InMozillaDB bool
+	RawCount uint64
+	done     bool
 }
 
 func TimeToJSONString(t time.Time) string {
@@ -81,17 +80,16 @@ func (summary *CertSummary) ViolatesBR() bool {
 
 func containsIssuerInRootList(certChain []*x509.Certificate, rootCAMap map[string]bool) bool {
 	for _, cert := range certChain {
-		if rootCAMap[cert.Subject.CommonName] {
+		if rootCAMap[cert.Issuer.CommonName] {
 			return true
 		}
 	}
 	return false
 }
 
-func NewIssuerReputation(issuer string, rootCAMap map[string]bool) *IssuerReputation {
+func NewIssuerReputation(issuer string) *IssuerReputation {
 	reputation := new(IssuerReputation)
 	reputation.Issuer = issuer
-	reputation.InMozillaDB = rootCAMap[issuer]
 	return reputation
 }
 
