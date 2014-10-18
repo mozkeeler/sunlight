@@ -82,8 +82,7 @@ func main() {
 				normalizedScore float,
 				rawScore float,
 				normalizedCount integer,
-				rawCount integer,
-        inMozillaDB bool)
+				rawCount integer)
   `
 
 	_, err = db.Exec(createTables)
@@ -126,9 +125,8 @@ func main() {
 				keyTooShortNormalizedScore, keyTooShortRawScore,
 				expTooSmallNormalizedScore, expTooSmallRawScore,
 				normalizedScore, rawScore,
-				normalizedCount, rawCount,
-        inMozillaDB)
-	                 values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				normalizedCount, rawCount)
+	                 values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	     `
 	insertIssuerStatement, err := tx.Prepare(insertIssuer)
 	if err != nil {
@@ -190,7 +188,7 @@ func main() {
 		summary, _ := sunlight.CalculateCertSummary(cert, &ranker, certList, rootCAMap)
 		if issuers[cert.Issuer.CommonName] == nil {
 			issuers[cert.Issuer.CommonName] = sunlight.NewIssuerReputation(
-				cert.Issuer.CommonName, rootCAMap)
+				cert.Issuer.CommonName)
 		}
 		// Update issuer reputation whether or not the cert violates baseline
 		// requirements.
@@ -261,8 +259,7 @@ func main() {
 			issuer.NormalizedScore,
 			issuer.RawScore,
 			issuer.NormalizedCount,
-			issuer.RawCount,
-			issuer.InMozillaDB)
+			issuer.RawCount)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to insert entry: %s\n", err)
 			os.Exit(1)
