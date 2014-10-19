@@ -1,6 +1,7 @@
 package sunlight
 
 import (
+	"bytes"
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
@@ -24,14 +25,34 @@ func TestCertSummary(t *testing.T) {
 	pemBlock, _ := pem.Decode([]byte(pemCertificate))
 	cert, _ := x509.ParseCertificate(pemBlock.Bytes)
 	summary, _ := CalculateCertSummary(cert, nil)
-	if summary.Violations[VALID_PERIOD_TOO_LONG] {
-		t.Error("Valid period too long")
-	}
-	if summary.Violations[KEY_TOO_SHORT] || summary.KeySize != 512 {
-		t.Error("Expected key too short")
+	expected := CertSummary{
+		CN:                 "test.example.com",
+		Issuer:             "test.example.com",
+		Sha256Fingerprint:  "Gvp+Qw6i96YPjUZoO2zqLWdusngA8xpAtvMBouj+MZ8=",
+		NotBefore:          "Jan 1 1970",
+		NotAfter:           "Jan 2 1970",
+		KeySize:            512,
+		Exp:                65537,
+		SignatureAlgorithm: 3,
+		Version:            3,
+		IsCA:               true,
+		DnsNames:           []string{"test.example.com"},
+		IpAddresses:        nil,
+		Violations: map[string]bool{
+			"DeprecatedSignatureAlgorithm": true,
+			"DeprecatedVersion":            false,
+			"ExpTooSmall":                  false,
+			"KeyTooShort":                  true,
+			"MissingCNInSan":               false,
+			"ValidPeriodTooLong":           false,
+		},
+		MaxReputation: 0,
 	}
 	b, _ := json.MarshalIndent(summary, "", "  ")
-	os.Stderr.Write(b)
+	expected_b, _ := json.MarshalIndent(expected, "", "  ")
+	if !bytes.Equal(expected_b, b) {
+		t.Errorf("Didn't get expected summary: %b \n!= \n%b\n", expected_b, b)
+	}
 }
 
 func TestIssuerReputation(t *testing.T) {
