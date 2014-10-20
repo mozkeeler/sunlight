@@ -13,27 +13,31 @@ import (
 	"time"
 )
 
+const (
+	VALID_PERIOD_TOO_LONG          = "ValidPeriodTooLong"
+	DEPRECATED_SIGNATURE_ALGORITHM = "DeprecatedSignatureAlgorithm"
+	DEPRECATED_VERSION             = "DeprecatedVersion"
+	MISSING_CN_IN_SAN              = "MissingCNInSan"
+	KEY_TOO_SHORT                  = "KeyTooShort"
+	EXP_TOO_SMALL                  = "ExpTooSmall"
+)
+
 // Only fields that start with capital letters are exported
 type CertSummary struct {
-	CN                           string
-	Issuer                       string
-	Sha256Fingerprint            string
-	NotBefore                    string
-	NotAfter                     string
-	ValidPeriodTooLong           bool
-	DeprecatedSignatureAlgorithm bool
-	DeprecatedVersion            bool
-	MissingCNinSAN               bool
-	KeyTooShort                  bool
-	KeySize                      int
-	ExpTooSmall                  bool
-	Exp                          int
-	SignatureAlgorithm           int
-	Version                      int
-	IsCA                         bool
-	DnsNames                     []string
-	IpAddresses                  []string
-	MaxReputation                float32
+	CN                 string
+	Issuer             string
+	Sha256Fingerprint  string
+	NotBefore          string
+	NotAfter           string
+	KeySize            int
+	Exp                int
+	SignatureAlgorithm int
+	Version            int
+	IsCA               bool
+	DnsNames           []string
+	IpAddresses        []string
+	Violations         map[string]bool
+	MaxReputation      float32
 }
 
 type IssuerReputationScore struct {
@@ -42,14 +46,9 @@ type IssuerReputationScore struct {
 }
 
 type IssuerReputation struct {
-	Issuer                       string
-	ValidPeriodTooLong           IssuerReputationScore
-	DeprecatedVersion            IssuerReputationScore
-	DeprecatedSignatureAlgorithm IssuerReputationScore
-	MissingCNinSAN               IssuerReputationScore
-	KeyTooShort                  IssuerReputationScore
-	ExpTooSmall                  IssuerReputationScore
-	IsCA                         uint64
+	Issuer string
+	Scores map[string]*IssuerReputationScore
+	IsCA   uint64
 	// Issuer reputation, between [0, 1]. This is only affected by certs that
 	// have MaxReputation != -1
 	NormalizedScore float32
@@ -69,14 +68,18 @@ func TimeToJSONString(t time.Time) string {
 }
 
 func (summary *CertSummary) ViolatesBR() bool {
-	return summary.ValidPeriodTooLong || summary.DeprecatedSignatureAlgorithm ||
-		summary.DeprecatedVersion || summary.MissingCNinSAN ||
-		summary.KeyTooShort || summary.ExpTooSmall
+	for _, val := range summary.Violations {
+		if val {
+			return true
+		}
+	}
+	return false
 }
 
 func NewIssuerReputation(issuer string) *IssuerReputation {
 	reputation := new(IssuerReputation)
 	reputation.Issuer = issuer
+	reputation.Scores = make(map[string]*IssuerReputationScore)
 	return reputation
 }
 
@@ -105,50 +108,30 @@ func (issuer *IssuerReputation) Update(summary *CertSummary) {
 		reputation = 0
 	}
 
-	if summary.ValidPeriodTooLong {
-		issuer.ValidPeriodTooLong.Update(reputation)
+	for name, val := range summary.Violations {
+		if val {
+			if issuer.Scores[name] == nil {
+				issuer.Scores[name] = new(IssuerReputationScore)
+			}
+			issuer.Scores[name].Update(reputation)
+		}
 	}
-	if summary.DeprecatedVersion {
-		issuer.DeprecatedVersion.Update(reputation)
-	}
-	if summary.DeprecatedSignatureAlgorithm {
-		issuer.DeprecatedSignatureAlgorithm.Update(reputation)
-	}
-	if summary.MissingCNinSAN {
-		issuer.MissingCNinSAN.Update(reputation)
-	}
-	if summary.KeyTooShort {
-		issuer.KeyTooShort.Update(reputation)
-	}
-	if summary.ExpTooSmall {
-		issuer.ExpTooSmall.Update(reputation)
-	}
+
 	if summary.IsCA {
 		issuer.IsCA += 1
 	}
 }
 
 func (issuer *IssuerReputation) Finish() {
-	issuer.ValidPeriodTooLong.Finish(issuer.NormalizedCount, issuer.RawCount)
-	issuer.DeprecatedVersion.Finish(issuer.NormalizedCount, issuer.RawCount)
-	issuer.DeprecatedSignatureAlgorithm.Finish(issuer.NormalizedCount, issuer.RawCount)
-	issuer.MissingCNinSAN.Finish(issuer.NormalizedCount, issuer.RawCount)
-	issuer.KeyTooShort.Finish(issuer.NormalizedCount, issuer.RawCount)
-	issuer.ExpTooSmall.Finish(issuer.NormalizedCount, issuer.RawCount)
-
-	// Calculate total score
-	issuer.NormalizedScore = (issuer.ValidPeriodTooLong.NormalizedScore +
-		issuer.DeprecatedVersion.NormalizedScore +
-		issuer.DeprecatedSignatureAlgorithm.NormalizedScore +
-		issuer.MissingCNinSAN.NormalizedScore +
-		issuer.KeyTooShort.NormalizedScore +
-		issuer.ExpTooSmall.NormalizedScore) / 6
-	issuer.RawScore = (issuer.ValidPeriodTooLong.RawScore +
-		issuer.DeprecatedVersion.RawScore +
-		issuer.DeprecatedSignatureAlgorithm.RawScore +
-		issuer.MissingCNinSAN.RawScore +
-		issuer.KeyTooShort.RawScore +
-		issuer.ExpTooSmall.RawScore) / 6
+	normalizedSum := float32(0.0)
+	rawSum := float32(0.0)
+	for _, score := range issuer.Scores {
+		score.Finish(issuer.NormalizedCount, issuer.RawCount)
+		normalizedSum += score.NormalizedScore
+		rawSum += score.RawScore
+	}
+	issuer.NormalizedScore = normalizedSum / float32(len(issuer.Scores))
+	issuer.RawScore = rawSum / float32(len(issuer.Scores))
 }
 
 func CalculateCertSummary(cert *x509.Certificate, ranker *alexa.AlexaRank) (result *CertSummary, err error) {
@@ -160,30 +143,31 @@ func CalculateCertSummary(cert *x509.Certificate, ranker *alexa.AlexaRank) (resu
 	summary.IsCA = cert.IsCA
 	summary.Version = cert.Version
 	summary.SignatureAlgorithm = int(cert.SignatureAlgorithm)
+	summary.Violations = map[string]bool{
+		VALID_PERIOD_TOO_LONG:          false,
+		DEPRECATED_SIGNATURE_ALGORITHM: false,
+		DEPRECATED_VERSION:             cert.Version != 3,
+		KEY_TOO_SHORT:                  false,
+		EXP_TOO_SMALL:                  false,
+		MISSING_CN_IN_SAN:              false,
+	}
 
 	// BR 9.4.1: Validity period is longer than 5 years.  This
 	// should be restricted to certs that don't have CA:True
-	summary.ValidPeriodTooLong = false
-
 	if cert.NotAfter.After(cert.NotBefore.AddDate(5, 0, 7)) &&
-		(!cert.BasicConstraintsValid || (cert.BasicConstraintsValid && !cert.IsCA)) {
-		summary.ValidPeriodTooLong = true
+		(!cert.BasicConstraintsValid ||
+			(cert.BasicConstraintsValid && !cert.IsCA)) {
+		summary.Violations[VALID_PERIOD_TOO_LONG] = true
 	}
 
 	// SignatureAlgorithm is SHA1
-	summary.DeprecatedSignatureAlgorithm = false
 	if cert.SignatureAlgorithm == x509.SHA1WithRSA ||
 		cert.SignatureAlgorithm == x509.DSAWithSHA1 ||
 		cert.SignatureAlgorithm == x509.ECDSAWithSHA1 {
-		summary.DeprecatedSignatureAlgorithm = true
+		summary.Violations[DEPRECATED_SIGNATURE_ALGORITHM] = true
 	}
 
-	// Uses v1 certificates
-	summary.DeprecatedVersion = cert.Version != 3
-
 	// Public key length <= 1024 bits
-	summary.KeyTooShort = false
-	summary.ExpTooSmall = false
 	summary.KeySize = -1
 	summary.Exp = -1
 	parsedKey, ok := cert.PublicKey.(*rsa.PublicKey)
@@ -191,18 +175,20 @@ func CalculateCertSummary(cert *x509.Certificate, ranker *alexa.AlexaRank) (resu
 		summary.KeySize = parsedKey.N.BitLen()
 		summary.Exp = parsedKey.E
 		if summary.KeySize <= 1024 {
-			summary.KeyTooShort = true
+			summary.Violations[KEY_TOO_SHORT] = true
 		}
 		if summary.Exp <= 3 {
-			summary.ExpTooSmall = true
+			summary.Violations[EXP_TOO_SMALL] = true
 		}
 	}
 
-	summary.MaxReputation, _ = ranker.GetReputation(cert.Subject.CommonName)
-	for _, host := range cert.DNSNames {
-		reputation, _ := ranker.GetReputation(host)
-		if reputation > summary.MaxReputation {
-			summary.MaxReputation = reputation
+	if ranker != nil {
+		summary.MaxReputation, _ = ranker.GetReputation(cert.Subject.CommonName)
+		for _, host := range cert.DNSNames {
+			reputation, _ := ranker.GetReputation(host)
+			if reputation > summary.MaxReputation {
+				summary.MaxReputation = reputation
+			}
 		}
 	}
 	sha256hasher := sha256.New()
@@ -217,7 +203,6 @@ func CalculateCertSummary(cert *x509.Certificate, ranker *alexa.AlexaRank) (resu
 
 	// Assume a 0-length CN means it isn't present (this isn't a good
 	// assumption). If the CN is missing, then it can't be missing CN in SAN.
-	summary.MissingCNinSAN = false
 	if len(cert.Subject.CommonName) == 0 {
 		return &summary, nil
 	}
@@ -229,21 +214,20 @@ func CalculateCertSummary(cert *x509.Certificate, ranker *alexa.AlexaRank) (resu
 
 	// BR 9.2.2: Found Common Name in Subject Alt Names, either as an IP or a
 	// DNS name.
-	summary.MissingCNinSAN = true
+	summary.Violations[MISSING_CN_IN_SAN] = true
 	cnAsIP := net.ParseIP(cert.Subject.CommonName)
 	if cnAsIP != nil {
 		for _, ip := range cert.IPAddresses {
 			if cnAsIP.Equal(ip) {
-				summary.MissingCNinSAN = false
+				summary.Violations[MISSING_CN_IN_SAN] = false
 			}
 		}
 	} else {
 		for _, san := range cert.DNSNames {
 			if err == nil && strings.EqualFold(san, cnAsPunycode) {
-				summary.MissingCNinSAN = false
+				summary.Violations[MISSING_CN_IN_SAN] = false
 			}
 		}
 	}
-
 	return &summary, nil
 }
