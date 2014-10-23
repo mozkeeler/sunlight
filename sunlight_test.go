@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
-	"os"
 	"testing"
 )
 
@@ -39,12 +38,12 @@ func TestCertSummary(t *testing.T) {
 		DnsNames:           []string{"test.example.com"},
 		IpAddresses:        nil,
 		Violations: map[string]bool{
-			"DeprecatedSignatureAlgorithm": true,
-			"DeprecatedVersion":            false,
-			"ExpTooSmall":                  false,
-			"KeyTooShort":                  true,
-			"MissingCNInSan":               false,
-			"ValidPeriodTooLong":           false,
+			DEPRECATED_SIGNATURE_ALGORITHM: true,
+			DEPRECATED_VERSION:             false,
+			EXP_TOO_SMALL:                  false,
+			KEY_TOO_SHORT:                  true,
+			MISSING_CN_IN_SAN:              false,
+			VALID_PERIOD_TOO_LONG:          false,
 		},
 		MaxReputation: 0,
 	}
@@ -98,6 +97,43 @@ func TestIssuerReputation(t *testing.T) {
 	if issuer.Scores[VALID_PERIOD_TOO_LONG].NormalizedScore != 0.9 {
 		t.Error("Should have score of 0.9")
 	}
+	expected_issuer := IssuerReputation{
+		Issuer: "Honest Al",
+		Scores: map[string]*IssuerReputationScore{
+			DEPRECATED_SIGNATURE_ALGORITHM: {
+				NormalizedScore: 1,
+				RawScore:        1,
+			},
+			DEPRECATED_VERSION: {
+				NormalizedScore: 1,
+				RawScore:        1,
+			},
+			EXP_TOO_SMALL: {
+				NormalizedScore: 1,
+				RawScore:        1,
+			},
+			KEY_TOO_SHORT: {
+				NormalizedScore: 1,
+				RawScore:        1,
+			},
+			MISSING_CN_IN_SAN: {
+				NormalizedScore: 0.9,
+				RawScore:        0,
+			},
+			VALID_PERIOD_TOO_LONG: {
+				NormalizedScore: 0.9,
+				RawScore:        0,
+			},
+		},
+		IsCA:            0,
+		NormalizedScore: 0.9666667,
+		RawScore:        0.6666667,
+		NormalizedCount: 1,
+		RawCount:        2,
+	}
 	b, _ := json.MarshalIndent(issuer, "", "  ")
-	os.Stderr.Write(b)
+	expected_b, _ := json.MarshalIndent(expected_issuer, "", "  ")
+	if !bytes.Equal(expected_b, b) {
+		t.Errorf("Didn't get expected reputation: %b \n!= \n%b\n", expected_b, b)
+	}
 }
