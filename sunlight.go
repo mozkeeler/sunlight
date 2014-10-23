@@ -109,10 +109,10 @@ func (issuer *IssuerReputation) Update(summary *CertSummary) {
 	}
 
 	for name, val := range summary.Violations {
+		if issuer.Scores[name] == nil {
+			issuer.Scores[name] = new(IssuerReputationScore)
+		}
 		if val {
-			if issuer.Scores[name] == nil {
-				issuer.Scores[name] = new(IssuerReputationScore)
-			}
 			issuer.Scores[name].Update(reputation)
 		}
 	}
