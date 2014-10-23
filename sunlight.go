@@ -34,7 +34,6 @@ type CertSummary struct {
 	SignatureAlgorithm int
 	Version            int
 	IsCA               bool
-	ECDSA              bool
 	DnsNames           []string
 	IpAddresses        []string
 	Violations         map[string]bool
@@ -171,7 +170,6 @@ func CalculateCertSummary(cert *x509.Certificate, ranker *alexa.AlexaRank) (resu
 	// Public key length <= 1024 bits
 	summary.KeySize = -1
 	summary.Exp = -1
-	summary.ECDSA = false
 	parsedKey, ok := cert.PublicKey.(*rsa.PublicKey)
 	if ok {
 		summary.KeySize = parsedKey.N.BitLen()
@@ -182,8 +180,6 @@ func CalculateCertSummary(cert *x509.Certificate, ranker *alexa.AlexaRank) (resu
 		if summary.Exp <= 3 {
 			summary.Violations[EXP_TOO_SMALL] = true
 		}
-	} else {
-		summary.ECDSA = true
 	}
 
 	if ranker != nil {
