@@ -9,7 +9,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/monicachew/alexa"
 	"github.com/monicachew/certificatetransparency"
-	"github.com/mozkeeler/sunlight"
+	. "github.com/mozkeeler/sunlight"
 	"os"
 	"runtime"
 	"sync"
@@ -157,7 +157,7 @@ func main() {
 	firstOutLock := new(sync.Mutex)
 	firstOut := true
 
-	issuers := make(map[string]*sunlight.IssuerReputation)
+	issuers := make(map[string]*IssuerReputation)
 	entriesFile.Map(func(ent *certificatetransparency.EntryAndPosition, err error) {
 		if err != nil {
 			return
@@ -183,11 +183,11 @@ func main() {
 				certList = append(certList, nextCert)
 			}
 		}
-		rootCAMap := sunlight.ReadRootCAMap(rootCAFile)
+		rootCAMap := ReadRootCAMap(rootCAFile)
 
-		summary, _ := sunlight.CalculateCertSummary(cert, &ranker, certList, rootCAMap)
+		summary, _ := CalculateCertSummary(cert, &ranker, certList, rootCAMap)
 		if issuers[cert.Issuer.CommonName] == nil {
-			issuers[cert.Issuer.CommonName] = sunlight.NewIssuerReputation(
+			issuers[cert.Issuer.CommonName] = NewIssuerReputation(
 				cert.Issuer.CommonName)
 		}
 		// Update issuer reputation whether or not the cert violates baseline
@@ -207,12 +207,12 @@ func main() {
 			_, err = insertEntryStatement.Exec(summary.CN, summary.Issuer,
 				summary.Sha256Fingerprint,
 				cert.NotBefore, cert.NotAfter,
-				summary.ValidPeriodTooLong,
-				summary.DeprecatedSignatureAlgorithm,
-				summary.DeprecatedVersion,
-				summary.MissingCNinSAN,
-				summary.KeyTooShort, summary.KeySize,
-				summary.ExpTooSmall, summary.Exp,
+				summary.Violations[VALID_PERIOD_TOO_LONG],
+				summary.Violations[DEPRECATED_SIGNATURE_ALGORITHM],
+				summary.Violations[DEPRECATED_VERSION],
+				summary.Violations[MISSING_CN_IN_SAN],
+				summary.Violations[KEY_TOO_SHORT], summary.KeySize,
+				summary.Violations[EXP_TOO_SMALL], summary.Exp,
 				summary.SignatureAlgorithm,
 				summary.Version, dnsNamesAsString,
 				ipAddressesAsString,
@@ -244,18 +244,18 @@ func main() {
 	for _, issuer := range issuers {
 		issuer.Finish()
 		_, err = insertIssuerStatement.Exec(issuer.Issuer,
-			issuer.ValidPeriodTooLong.NormalizedScore,
-			issuer.ValidPeriodTooLong.RawScore,
-			issuer.DeprecatedVersion.NormalizedScore,
-			issuer.DeprecatedVersion.RawScore,
-			issuer.DeprecatedSignatureAlgorithm.NormalizedScore,
-			issuer.DeprecatedSignatureAlgorithm.RawScore,
-			issuer.MissingCNinSAN.NormalizedScore,
-			issuer.MissingCNinSAN.RawScore,
-			issuer.KeyTooShort.NormalizedScore,
-			issuer.KeyTooShort.RawScore,
-			issuer.ExpTooSmall.NormalizedScore,
-			issuer.ExpTooSmall.RawScore,
+			issuer.Scores[VALID_PERIOD_TOO_LONG].NormalizedScore,
+			issuer.Scores[VALID_PERIOD_TOO_LONG].RawScore,
+			issuer.Scores[DEPRECATED_VERSION].NormalizedScore,
+			issuer.Scores[DEPRECATED_VERSION].RawScore,
+			issuer.Scores[DEPRECATED_SIGNATURE_ALGORITHM].NormalizedScore,
+			issuer.Scores[DEPRECATED_SIGNATURE_ALGORITHM].RawScore,
+			issuer.Scores[MISSING_CN_IN_SAN].NormalizedScore,
+			issuer.Scores[MISSING_CN_IN_SAN].RawScore,
+			issuer.Scores[KEY_TOO_SHORT].NormalizedScore,
+			issuer.Scores[KEY_TOO_SHORT].RawScore,
+			issuer.Scores[EXP_TOO_SMALL].NormalizedScore,
+			issuer.Scores[EXP_TOO_SMALL].RawScore,
 			issuer.NormalizedScore,
 			issuer.RawScore,
 			issuer.NormalizedCount,
