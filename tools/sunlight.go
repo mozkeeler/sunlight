@@ -157,6 +157,8 @@ func main() {
 	firstOutLock := new(sync.Mutex)
 	firstOut := true
 
+	rootCAMap := ReadRootCAMap(rootCAFile)
+
 	issuers := make(map[string]*IssuerReputation)
 	entriesFile.Map(func(ent *certificatetransparency.EntryAndPosition, err error) {
 		if err != nil {
@@ -179,11 +181,11 @@ func main() {
 		certList := make([]*x509.Certificate, 0)
 		for _, certBytes := range ent.Entry.ExtraCerts {
 			nextCert, err := x509.ParseCertificate(certBytes)
-			if err != nil && nextCert != nil { // without nextCert != nil, this crashes
-				certList = append(certList, nextCert)
+			if err != nil {
+				continue
 			}
+			certList = append(certList, nextCert)
 		}
-		rootCAMap := ReadRootCAMap(rootCAFile)
 
 		summary, _ := CalculateCertSummary(cert, &ranker, certList, rootCAMap)
 		if issuers[cert.Issuer.CommonName] == nil {
