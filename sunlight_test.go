@@ -23,7 +23,9 @@ YW1wbGUuY29tMAsGCSqGSIb3DQEBBQNBAHKZKoS1wEQOGhgklx4+/yFYQlnqwKXvar/ZecQvJwui
 func TestCertSummary(t *testing.T) {
 	pemBlock, _ := pem.Decode([]byte(pemCertificate))
 	cert, _ := x509.ParseCertificate(pemBlock.Bytes)
-	summary, _ := CalculateCertSummary(cert, nil)
+	fakeRootCAMap := make(map[string]bool)
+	fakeCertList := make([]*x509.Certificate, 0)
+	summary, _ := CalculateCertSummary(cert, nil, fakeCertList, fakeRootCAMap)
 	expected := CertSummary{
 		CN:                 "test.example.com",
 		Issuer:             "test.example.com",
