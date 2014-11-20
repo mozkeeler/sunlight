@@ -6,9 +6,12 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
+	"fmt"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/monicachew/alexa"
+	"io/ioutil"
 	"net"
+	"os"
 	"strings"
 	"time"
 )
@@ -38,6 +41,7 @@ type CertSummary struct {
 	IpAddresses        []string
 	Violations         map[string]bool
 	MaxReputation      float32
+	IssuerInMozillaDB  bool
 }
 
 type IssuerReputationScore struct {
@@ -70,6 +74,15 @@ func TimeToJSONString(t time.Time) string {
 func (summary *CertSummary) ViolatesBR() bool {
 	for _, val := range summary.Violations {
 		if val {
+			return true
+		}
+	}
+	return false
+}
+
+func containsIssuerInRootList(certChain []*x509.Certificate, rootCAMap map[string]bool) bool {
+	for _, cert := range certChain {
+		if rootCAMap[cert.Issuer.CommonName] {
 			return true
 		}
 	}
@@ -134,7 +147,8 @@ func (issuer *IssuerReputation) Finish() {
 	issuer.RawScore = rawSum / float32(len(issuer.Scores))
 }
 
-func CalculateCertSummary(cert *x509.Certificate, ranker *alexa.AlexaRank) (result *CertSummary, err error) {
+func CalculateCertSummary(cert *x509.Certificate, ranker *alexa.AlexaRank,
+	certChain []*x509.Certificate, rootCAMap map[string]bool) (result *CertSummary, err error) {
 	summary := CertSummary{}
 	summary.CN = cert.Subject.CommonName
 	summary.Issuer = cert.Issuer.CommonName
@@ -201,6 +215,8 @@ func CalculateCertSummary(cert *x509.Certificate, ranker *alexa.AlexaRank) (resu
 		summary.IpAddresses = append(summary.IpAddresses, address.String())
 	}
 
+	summary.IssuerInMozillaDB = containsIssuerInRootList(certChain, rootCAMap)
+
 	// Assume a 0-length CN means it isn't present (this isn't a good
 	// assumption). If the CN is missing, then it can't be missing CN in SAN.
 	if len(cert.Subject.CommonName) == 0 {
@@ -230,4 +246,21 @@ func CalculateCertSummary(cert *x509.Certificate, ranker *alexa.AlexaRank) (resu
 		}
 	}
 	return &summary, nil
+}
+
+// Takes the name of a file containing newline-delimited Subject Common Names
+// that each correspond to a certificate in Mozilla's root CA program.
+// Returns these names as a map of string -> bool.
+func ReadRootCAMap(filename string) map[string]bool {
+	caStringBytes, err := ioutil.ReadFile(filename)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to open root CA list at %s: %s\n",
+			filename, err)
+		os.Exit(1)
+	}
+	rootCAMap := make(map[string]bool)
+	for _, ca := range strings.Split(string(caStringBytes), "\n") {
+		rootCAMap[ca] = true
+	}
+	return rootCAMap
 }

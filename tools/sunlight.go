@@ -22,6 +22,7 @@ var dbFile string
 var ctLog string
 var jsonFile string
 var maxEntries uint64
+var rootCAFile string
 
 func init() {
 	flag.StringVar(&alexaFile, "alexa_file", "top-1m.csv",
@@ -30,6 +31,7 @@ func init() {
 	flag.StringVar(&ctLog, "ct_log", "ct_entries.log", "File containing CT log")
 	flag.StringVar(&jsonFile, "json_file", "certs.json", "JSON summary output")
 	flag.Uint64Var(&maxEntries, "max_entries", 0, "Max entries (0 means all)")
+	flag.StringVar(&rootCAFile, "rootCA_file", "rootCAList.txt", "list of root CA CNs")
 	runtime.GOMAXPROCS(runtime.NumCPU())
 }
 
@@ -61,7 +63,8 @@ func main() {
                                      keySize integer, expTooSmall bool,
                                      exp integer, signatureAlgorithm integer,
                                      version integer, dnsNames string,
-                                     ipAddresses string, maxReputation float);
+                                     ipAddresses string, maxReputation float,
+                                     issuerInMozillaDB bool);
   drop table if exists issuerReputation;
 	create table issuerReputation (issuer text,
 				validPeriodTooLongNormalizedScore float,
@@ -80,7 +83,6 @@ func main() {
 				rawScore float,
 				normalizedCount integer,
 				rawCount integer)
-
   `
 
 	_, err = db.Exec(createTables)
@@ -102,8 +104,9 @@ func main() {
                                    deprecatedVersion, missingCNinSAN,
                                    keyTooShort, keySize, expTooSmall, exp,
                                    signatureAlgorithm, version, dnsNames,
-                                   ipAddresses, maxReputation)
-              values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                   ipAddresses, maxReputation,
+                                   issuerInMozillaDB)
+              values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `
 	insertEntryStatement, err := tx.Prepare(insertEntry)
 	if err != nil {
@@ -154,6 +157,8 @@ func main() {
 	firstOutLock := new(sync.Mutex)
 	firstOut := true
 
+	rootCAMap := ReadRootCAMap(rootCAFile)
+
 	issuers := make(map[string]*IssuerReputation)
 	entriesFile.Map(func(ent *certificatetransparency.EntryAndPosition, err error) {
 		if err != nil {
@@ -173,7 +178,16 @@ func main() {
 			return
 		}
 
-		summary, _ := CalculateCertSummary(cert, &ranker)
+		certList := make([]*x509.Certificate, 0)
+		for _, certBytes := range ent.Entry.ExtraCerts {
+			nextCert, err := x509.ParseCertificate(certBytes)
+			if err != nil {
+				continue
+			}
+			certList = append(certList, nextCert)
+		}
+
+		summary, _ := CalculateCertSummary(cert, &ranker, certList, rootCAMap)
 		if issuers[cert.Issuer.CommonName] == nil {
 			issuers[cert.Issuer.CommonName] = NewIssuerReputation(
 				cert.Issuer.CommonName)
@@ -204,7 +218,8 @@ func main() {
 				summary.SignatureAlgorithm,
 				summary.Version, dnsNamesAsString,
 				ipAddressesAsString,
-				summary.MaxReputation)
+				summary.MaxReputation,
+				summary.IssuerInMozillaDB)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Failed to insert entry: %s\n", err)
 				os.Exit(1)
