@@ -50,9 +50,10 @@ type IssuerReputationScore struct {
 }
 
 type IssuerReputation struct {
-	Issuer string
-	Scores map[string]*IssuerReputationScore
-	IsCA   uint64
+	Issuer            string
+	IssuerInMozillaDB bool
+	Scores            map[string]*IssuerReputationScore
+	IsCA              uint64
 	// Issuer reputation, between [0, 1]. This is only affected by certs that
 	// have MaxReputation != -1
 	NormalizedScore float32
@@ -112,7 +113,7 @@ func (score *IssuerReputationScore) Finish(normalizedCount uint64,
 
 func (issuer *IssuerReputation) Update(summary *CertSummary) {
 	issuer.RawCount += 1
-
+	issuer.IssuerInMozillaDB = summary.IssuerInMozillaDB
 	reputation := summary.MaxReputation
 	if reputation != -1 {
 		// Keep track of certs issued for domains in Alexa
