@@ -69,7 +69,8 @@ func TestIssuerReputation(t *testing.T) {
 			EXP_TOO_SMALL:                  false,
 			MISSING_CN_IN_SAN:              true,
 		},
-		MaxReputation: 0.1,
+		MaxReputation:     0.1,
+		IssuerInMozillaDB: false,
 	}
 	unknown_summary := CertSummary{
 		CN:                "unknown.example.com",
@@ -83,8 +84,9 @@ func TestIssuerReputation(t *testing.T) {
 			EXP_TOO_SMALL:                  false,
 			MISSING_CN_IN_SAN:              true,
 		},
-		IsCA:          false,
-		MaxReputation: -1,
+		IsCA:              false,
+		MaxReputation:     -1,
+		IssuerInMozillaDB: false,
 	}
 	issuer := NewIssuerReputation("Honest Al")
 	issuer.Update(&summary)
@@ -98,6 +100,9 @@ func TestIssuerReputation(t *testing.T) {
 	}
 	if issuer.Scores[VALID_PERIOD_TOO_LONG].NormalizedScore != 0.9 {
 		t.Error("Should have score of 0.9")
+	}
+	if issuer.IssuerInMozillaDB {
+		t.Error("Should not be in mozilla db")
 	}
 	expected_issuer := IssuerReputation{
 		Issuer: "Honest Al",
@@ -136,6 +141,6 @@ func TestIssuerReputation(t *testing.T) {
 	b, _ := json.MarshalIndent(issuer, "", "  ")
 	expected_b, _ := json.MarshalIndent(expected_issuer, "", "  ")
 	if !bytes.Equal(expected_b, b) {
-		t.Errorf("Didn't get expected reputation: %b \n!= \n%b\n", expected_b, b)
+		t.Errorf("Didn't get expected reputation: %s \n!= \n%s\n", expected_b, b)
 	}
 }
