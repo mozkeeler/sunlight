@@ -2,57 +2,98 @@ package sunlight
 
 import (
 	"bytes"
-	"crypto/x509"
+	//"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+	"github.com/monicachew/certificatetransparency"
 	"testing"
+	"time"
 )
 
 const pemCertificate = `-----BEGIN CERTIFICATE-----
-MIIB5DCCAZCgAwIBAgIBATALBgkqhkiG9w0BAQUwLTEQMA4GA1UEChMHQWNtZSBDbzEZMBcGA1UE
-AxMQdGVzdC5leGFtcGxlLmNvbTAeFw03MDAxMDEwMDE2NDBaFw03MDAxMDIwMzQ2NDBaMC0xEDAO
-BgNVBAoTB0FjbWUgQ28xGTAXBgNVBAMTEHRlc3QuZXhhbXBsZS5jb20wWjALBgkqhkiG9w0BAQED
-SwAwSAJBALKZD0nEffqM1ACuak0bijtqE2QrI/KLADv7l3kK3ppMyCuLKoF0fd7Ai2KW5ToIwzFo
-fvJcS/STa6HA5gQenRUCAwEAAaOBnjCBmzAOBgNVHQ8BAf8EBAMCAAQwDwYDVR0TAQH/BAUwAwEB
-/zANBgNVHQ4EBgQEAQIDBDAPBgNVHSMECDAGgAQBAgMEMBsGA1UdEQQUMBKCEHRlc3QuZXhhbXBs
-ZS5jb20wDwYDVR0gBAgwBjAEBgIqAzAqBgNVHR4EIzAhoB8wDoIMLmV4YW1wbGUuY29tMA2CC2V4
-YW1wbGUuY29tMAsGCSqGSIb3DQEBBQNBAHKZKoS1wEQOGhgklx4+/yFYQlnqwKXvar/ZecQvJwui
-0seMQnwBhwdBkHfVIU2Fu5VUMRyxlf0ZNaDXcpU581k=
+MIIFxTCCBK2gAwIBAgIQBOTrHn+MUQnbvwwcf0EWkTANBgkqhkiG9w0BAQUFADBp
+MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3
+d3cuZGlnaWNlcnQuY29tMSgwJgYDVQQDEx9EaWdpQ2VydCBIaWdoIEFzc3VyYW5j
+ZSBFViBDQS0xMB4XDTEzMTIwMjAwMDAwMFoXDTE1MTIwNzEyMDAwMFowgf0xHTAb
+BgNVBA8MFFByaXZhdGUgT3JnYW5pemF0aW9uMRMwEQYLKwYBBAGCNzwCAQMTAlVT
+MRswGQYLKwYBBAGCNzwCAQITCkNhbGlmb3JuaWExETAPBgNVBAUTCEMyNTQzNDM2
+MR4wHAYDVQQJExU2NTAgQ2FzdHJvIFN0IFN0ZSAzMDAxDjAMBgNVBBETBTk0MDQx
+MQswCQYDVQQGEwJVUzELMAkGA1UECBMCQ0ExFjAUBgNVBAcTDU1vdW50YWluIFZp
+ZXcxGzAZBgNVBAoTEk1vemlsbGEgRm91bmRhdGlvbjEYMBYGA1UEAxMPd3d3Lm1v
+emlsbGEub3JnMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuHHB4NGH
+II28Vm4WrSFjZN5YM0bEBuVbPcwbwBAEinRe9Iwwwye359vVs24o5YRnSkjkJYfr
+XHEb8f836GXBotN1xcxsrOi7brTJcA4qeE5ntby6V6wdlxKEy5mt2Fd9P7wl9v1U
+lXmHyFxpF9UlDDoSuiDGUO+Q0U9lipKOrKoA3Q1Uzp/ntwrZL01BV4AUgTQf6b1H
+Lu3ZD8CUG9xrq4Isi4OIMaJQX+kVwrQqxLe3Ahmjq9uP2iXAiLf7aVluTyFgfAfv
+v1/pf0193zgQoe0oGDReh5/QrbO6j+XtV2sHDnDen+mQO2/GNwETfQPCIKIroGf4
+JUnftt7Cwz1KmQIDAQABo4IB0jCCAc4wHwYDVR0jBBgwFoAUTFjLJfBBT1L0KMiB
+Q5umqKDmkuUwHQYDVR0OBBYEFIPU1A81pLqLvmE3YsGWDTbHxzc5MCcGA1UdEQQg
+MB6CD3d3dy5tb3ppbGxhLm9yZ4ILbW96aWxsYS5vcmcwDgYDVR0PAQH/BAQDAgWg
+MB0GA1UdJQQWMBQGCCsGAQUFBwMBBggrBgEFBQcDAjBjBgNVHR8EXDBaMCugKaAn
+hiVodHRwOi8vY3JsMy5kaWdpY2VydC5jb20vZXZjYTEtZzQuY3JsMCugKaAnhiVo
+dHRwOi8vY3JsNC5kaWdpY2VydC5jb20vZXZjYTEtZzQuY3JsMEIGA1UdIAQ7MDkw
+NwYJYIZIAYb9bAIBMCowKAYIKwYBBQUHAgEWHGh0dHBzOi8vd3d3LmRpZ2ljZXJ0
+LmNvbS9DUFMwfQYIKwYBBQUHAQEEcTBvMCQGCCsGAQUFBzABhhhodHRwOi8vb2Nz
+cC5kaWdpY2VydC5jb20wRwYIKwYBBQUHMAKGO2h0dHA6Ly9jYWNlcnRzLmRpZ2lj
+ZXJ0LmNvbS9EaWdpQ2VydEhpZ2hBc3N1cmFuY2VFVkNBLTEuY3J0MAwGA1UdEwEB
+/wQCMAAwDQYJKoZIhvcNAQEFBQADggEBABnjOqDoPoJ/3K1W8+uxXLBzN27P31EI
+9Qs2F9z4pB7flY6qR/XBBsECf/dVPd+xNJqqNKGwphNOycKApX/dy53QVf68YEnI
+VvB4QzdWheZXl+1r+wlFfwpg0MT7Bdx1xvCd7D53HfPfFdan5/uhT8hns4wObgnn
+w5DH5V9HDbhDHBEZg83Y2zmyki9J2EG8KpsvYEHNmmRok86OZe9NaSwwCK21kgMl
+ilzypNybFK/PwCwWhytdsZTpvVp1SUCR6XYjD0BjzRJU8xB63N5HYgwl7cFS7yZL
+upuIlUgiDZN7izlGZeqCM5mgBvnlYA0QcwdIpNy4S7JGp8KrhAW/0uo=
 -----END CERTIFICATE-----`
 
 func TestCertSummary(t *testing.T) {
 	pemBlock, _ := pem.Decode([]byte(pemCertificate))
-	cert, _ := x509.ParseCertificate(pemBlock.Bytes)
+	//cert, _ := x509.ParseCertificate(pemBlock.Bytes)
 	fakeRootCAMap := make(map[string]bool)
-	fakeCertList := make([]*x509.Certificate, 0)
-	summary, _ := CalculateCertSummary(cert, nil, fakeCertList, fakeRootCAMap)
+	//fakeCertList := make([]*x509.Certificate, 0)
+	fakeList := [][]byte(nil)
+	ct_entry := certificatetransparency.Entry{
+		X509Cert:   pemBlock.Bytes,
+		Time:       time.Now(),
+		ExtraCerts: fakeList,
+	}
+	ent := certificatetransparency.EntryAndPosition{
+		Entry: &ct_entry,
+	}
+	summary, err := CalculateCertSummary(&ent, nil, fakeRootCAMap)
+	if err != nil {
+		t.Errorf("Shouldn't have failed: %s\n", err)
+	}
 	expected := CertSummary{
-		CN:                 "test.example.com",
-		Issuer:             "test.example.com",
-		Sha256Fingerprint:  "Gvp+Qw6i96YPjUZoO2zqLWdusngA8xpAtvMBouj+MZ8=",
-		NotBefore:          "Jan 1 1970",
-		NotAfter:           "Jan 2 1970",
-		KeySize:            512,
+		CN:                 "www.mozilla.org",
+		Issuer:             "DigiCert High Assurance EV CA-1",
+		Sha256Fingerprint:  "t1XI8b24uN+bPoKjhlRNRTb1rF/RuJlbd0fs+0tNtSc=",
+		NotBefore:          "Dec 2 2013",
+		NotAfter:           "Dec 7 2015",
+		KeySize:            2048,
 		Exp:                65537,
 		SignatureAlgorithm: 3,
 		Version:            3,
-		IsCA:               true,
-		DnsNames:           []string{"test.example.com"},
-		IpAddresses:        nil,
+		IsCA:               false,
+		DnsNames: []string{
+			"www.mozilla.org",
+			"mozilla.org",
+		},
+		IpAddresses: nil,
 		Violations: map[string]bool{
 			DEPRECATED_SIGNATURE_ALGORITHM: true,
 			DEPRECATED_VERSION:             false,
 			EXP_TOO_SMALL:                  false,
-			KEY_TOO_SHORT:                  true,
+			KEY_TOO_SHORT:                  false,
 			MISSING_CN_IN_SAN:              false,
 			VALID_PERIOD_TOO_LONG:          false,
 		},
-		MaxReputation: 0,
+		MaxReputation:     0,
+		IssuerInMozillaDB: false,
 	}
+
 	b, _ := json.MarshalIndent(summary, "", "  ")
 	expected_b, _ := json.MarshalIndent(expected, "", "  ")
 	if !bytes.Equal(expected_b, b) {
-		t.Errorf("Didn't get expected summary: %b \n!= \n%b\n", expected_b, b)
+		t.Errorf("Didn't get expected summary: %s \n!= \n%s\n", expected_b, b)
 	}
 }
 
