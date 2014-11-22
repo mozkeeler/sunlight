@@ -167,36 +167,23 @@ func main() {
 			return
 		}
 
+		summary, err := CalculateCertSummary(ent, &ranker, rootCAMap)
+		if err != nil {
+			return
+		}
+		if summary != nil {
+			return
+		}
 		cert, err := x509.ParseCertificate(ent.Entry.X509Cert)
 		if err != nil {
 			return
 		}
-
-		// Filter out certs issued before 2013 or that have already
-		// expired.
-		now := time.Now()
-		if cert.NotBefore.Before(time.Date(2013, 1, 1, 0, 0, 0, 0, time.UTC)) ||
-			cert.NotAfter.Before(now) {
-			return
-		}
-
-		certList := make([]*x509.Certificate, 0)
-		for _, certBytes := range ent.Entry.ExtraCerts {
-			nextCert, err := x509.ParseCertificate(certBytes)
-			if err != nil {
-				continue
-			}
-			certList = append(certList, nextCert)
-		}
-
-		summary, _ := CalculateCertSummary(cert, &ranker, certList, rootCAMap)
-		if issuers[cert.Issuer.CommonName] == nil {
-			issuers[cert.Issuer.CommonName] = NewIssuerReputation(
-				cert.Issuer.CommonName)
+		if issuers[summary.CN] == nil {
+			issuers[summary.CN] = NewIssuerReputation(summary.CN)
 		}
 		// Update issuer reputation whether or not the cert violates baseline
 		// requirements.
-		issuers[cert.Issuer.CommonName].Update(summary)
+		issuers[summary.CN].Update(summary)
 		if summary != nil && summary.ViolatesBR() {
 			dnsNamesAsString, err := json.Marshal(summary.DnsNames)
 			if err != nil {
