@@ -167,29 +167,10 @@ func main() {
 			return
 		}
 
-		cert, err := x509.ParseCertificate(ent.Entry.X509Cert)
+		summary, err := CalculateCertSummary(ent, &ranker, rootCAMap)
 		if err != nil {
 			return
 		}
-
-		// Filter out certs issued before 2013 or that have already
-		// expired.
-		now := time.Now()
-		if cert.NotBefore.Before(time.Date(2013, 1, 1, 0, 0, 0, 0, time.UTC)) ||
-			cert.NotAfter.Before(now) {
-			return
-		}
-
-		certList := make([]*x509.Certificate, 0)
-		for _, certBytes := range ent.Entry.ExtraCerts {
-			nextCert, err := x509.ParseCertificate(certBytes)
-			if err != nil {
-				continue
-			}
-			certList = append(certList, nextCert)
-		}
-
-		summary, _ := CalculateCertSummary(cert, &ranker, certList, rootCAMap)
 		if issuers[cert.Issuer.CommonName] == nil {
 			issuers[cert.Issuer.CommonName] = NewIssuerReputation(
 				cert.Issuer.CommonName)

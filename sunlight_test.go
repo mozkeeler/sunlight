@@ -2,10 +2,12 @@ package sunlight
 
 import (
 	"bytes"
-	"crypto/x509"
+	//"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+	"github.com/monicachew/certificatetransparency"
 	"testing"
+	"time"
 )
 
 const pemCertificate = `-----BEGIN CERTIFICATE-----
@@ -22,10 +24,23 @@ YW1wbGUuY29tMAsGCSqGSIb3DQEBBQNBAHKZKoS1wEQOGhgklx4+/yFYQlnqwKXvar/ZecQvJwui
 
 func TestCertSummary(t *testing.T) {
 	pemBlock, _ := pem.Decode([]byte(pemCertificate))
-	cert, _ := x509.ParseCertificate(pemBlock.Bytes)
+	//cert, _ := x509.ParseCertificate(pemBlock.Bytes)
 	fakeRootCAMap := make(map[string]bool)
-	fakeCertList := make([]*x509.Certificate, 0)
-	summary, _ := CalculateCertSummary(cert, nil, fakeCertList, fakeRootCAMap)
+	//fakeCertList := make([]*x509.Certificate, 0)
+	fakeList := [][]byte(nil)
+	ct_entry := certificatetransparency.Entry{
+		X509Cert:   pemBlock.Bytes,
+		Time:       time.Now(),
+		ExtraCerts: fakeList,
+	}
+	ent := certificatetransparency.EntryAndPosition{
+		Entry: &ct_entry,
+	}
+	summary, err := CalculateCertSummary(&ent, nil, fakeRootCAMap)
+	if err != nil {
+		t.Errorf("Shouldn't have failed: %s\n", err)
+	}
+
 	expected := CertSummary{
 		CN:                 "test.example.com",
 		Issuer:             "test.example.com",
@@ -52,7 +67,7 @@ func TestCertSummary(t *testing.T) {
 	b, _ := json.MarshalIndent(summary, "", "  ")
 	expected_b, _ := json.MarshalIndent(expected, "", "  ")
 	if !bytes.Equal(expected_b, b) {
-		t.Errorf("Didn't get expected summary: %b \n!= \n%b\n", expected_b, b)
+		t.Errorf("Didn't get expected summary: %s \n!= \n%s\n", expected_b, b)
 	}
 }
 
