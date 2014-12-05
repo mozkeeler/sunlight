@@ -2,7 +2,6 @@ package sunlight
 
 import (
 	"bytes"
-	//"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
 	"github.com/monicachew/certificatetransparency"
@@ -50,9 +49,12 @@ func TestCertSummary(t *testing.T) {
 	fakeRootCAMap := make(map[string]bool)
 	//fakeCertList := make([]*x509.Certificate, 0)
 	fakeList := [][]byte(nil)
+	now := time.Now()
+	ts := uint64(now.Unix())
 	ct_entry := certificatetransparency.Entry{
+		Timestamp:  ts,
 		X509Cert:   pemBlock.Bytes,
-		Time:       time.Now(),
+		Time:       now,
 		ExtraCerts: fakeList,
 	}
 	ent := certificatetransparency.EntryAndPosition{
@@ -88,6 +90,7 @@ func TestCertSummary(t *testing.T) {
 		},
 		MaxReputation:     0,
 		IssuerInMozillaDB: false,
+		Timestamp:         ts,
 	}
 
 	b, _ := json.MarshalIndent(summary, "", "  ")

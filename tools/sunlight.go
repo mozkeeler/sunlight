@@ -64,7 +64,8 @@ func main() {
                                      exp integer, signatureAlgorithm integer,
                                      version integer, dnsNames string,
                                      ipAddresses string, maxReputation float,
-                                     issuerInMozillaDB bool);
+                                     issuerInMozillaDB bool,
+                                     timestamp bigint);
   drop table if exists issuerReputation;
 	create table issuerReputation (issuer text,
         issuerInMozillaDB bool,
@@ -83,7 +84,9 @@ func main() {
 				normalizedScore float,
 				rawScore float,
 				normalizedCount integer,
-				rawCount integer)
+				rawCount integer,
+        beginTime bigint,
+        deltaTime bigint)
   `
 
 	_, err = db.Exec(createTables)
@@ -106,7 +109,7 @@ func main() {
                                    keyTooShort, keySize, expTooSmall, exp,
                                    signatureAlgorithm, version, dnsNames,
                                    ipAddresses, maxReputation,
-                                   issuerInMozillaDB)
+                                   issuerInMozillaDB, timestamp)
               values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `
 	insertEntryStatement, err := tx.Prepare(insertEntry)
