@@ -44,6 +44,7 @@ type CertSummary struct {
 	Violations         map[string]bool
 	MaxReputation      float32
 	IssuerInMozillaDB  bool
+	Timestamp          uint64
 }
 
 type IssuerReputationScore struct {
@@ -66,7 +67,10 @@ type IssuerReputation struct {
 	NormalizedCount uint64
 	// Total count of certs issued by this issuer
 	RawCount uint64
-	done     bool
+	// The time period for which we calculated this reputation
+	BeginTime uint64
+	DeltaTime uint64
+	done      bool
 }
 
 func TimeToJSONString(t time.Time) string {
@@ -189,6 +193,7 @@ func CalculateCertSummary(ent *certificatetransparency.EntryAndPosition, ranker 
 		EXP_TOO_SMALL:                  false,
 		MISSING_CN_IN_SAN:              false,
 	}
+	summary.Timestamp = ent.Entry.Timestamp
 
 	// BR 9.4.1: Validity period is longer than 5 years.  This
 	// should be restricted to certs that don't have CA:True
