@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/x509"
 	"database/sql"
 	"encoding/json"
 	"flag"
@@ -175,14 +174,15 @@ func main() {
 		if err != nil {
 			return
 		}
-		if issuers[cert.Issuer.CommonName] == nil {
-			issuers[cert.Issuer.CommonName] = NewIssuerReputation(
-				cert.Issuer.CommonName)
+		if summary == nil {
+			fmt.Fprintf(os.Stderr, "wtf\n")
+		}
+		key := fmt.Sprintf("%s:%d", summary.CN, TruncateMonth(summary.Timestamp))
+		if issuers[key] == nil {
+			issuers[key] = NewIssuerReputation(summary.CN)
 		}
 		// Update issuer reputation whether or not the cert violates baseline
 		// requirements.
-		key := fmt.Sprintf("%s:%d", cert.Issuer.CommonName,
-			TruncateMonth(summary.TimeStamp))
 		issuers[key].Update(summary)
 		if summary != nil && summary.ViolatesBR() {
 			dnsNamesAsString, err := json.Marshal(summary.DnsNames)
@@ -197,7 +197,7 @@ func main() {
 			}
 			_, err = insertEntryStatement.Exec(summary.CN, summary.Issuer,
 				summary.Sha256Fingerprint,
-				cert.NotBefore, cert.NotAfter,
+				summary.NotBefore, summary.NotAfter,
 				summary.Violations[VALID_PERIOD_TOO_LONG],
 				summary.Violations[DEPRECATED_SIGNATURE_ALGORITHM],
 				summary.Violations[DEPRECATED_VERSION],
