@@ -110,7 +110,7 @@ func main() {
                                    signatureAlgorithm, version, dnsNames,
                                    ipAddresses, maxReputation,
                                    issuerInMozillaDB, timestamp)
-              values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `
 	insertEntryStatement, err := tx.Prepare(insertEntry)
 	if err != nil {
@@ -130,8 +130,9 @@ func main() {
 				keyTooShortNormalizedScore, keyTooShortRawScore,
 				expTooSmallNormalizedScore, expTooSmallRawScore,
 				normalizedScore, rawScore,
-				normalizedCount, rawCount)
-	                 values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				normalizedCount, rawCount,
+        beginTime, deltaTime)
+	                 values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	     `
 	insertIssuerStatement, err := tx.Prepare(insertIssuer)
 	if err != nil {
@@ -180,7 +181,9 @@ func main() {
 		}
 		// Update issuer reputation whether or not the cert violates baseline
 		// requirements.
-		issuers[cert.Issuer.CommonName].Update(summary)
+		key := fmt.Sprintf("%s:%d", cert.Issuer.CommonName,
+			TruncateMonth(summary.TimeStamp))
+		issuers[key].Update(summary)
 		if summary != nil && summary.ViolatesBR() {
 			dnsNamesAsString, err := json.Marshal(summary.DnsNames)
 			if err != nil {
@@ -205,7 +208,8 @@ func main() {
 				summary.Version, dnsNamesAsString,
 				ipAddressesAsString,
 				summary.MaxReputation,
-				summary.IssuerInMozillaDB)
+				summary.IssuerInMozillaDB,
+				summary.Timestamp)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Failed to insert entry: %s\n", err)
 				os.Exit(1)
@@ -248,7 +252,8 @@ func main() {
 			issuer.NormalizedScore,
 			issuer.RawScore,
 			issuer.NormalizedCount,
-			issuer.RawCount)
+			issuer.RawCount,
+			issuer.BeginTime)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to insert entry: %s\n", err)
 			os.Exit(1)

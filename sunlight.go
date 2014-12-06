@@ -14,6 +14,7 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -67,15 +68,23 @@ type IssuerReputation struct {
 	NormalizedCount uint64
 	// Total count of certs issued by this issuer
 	RawCount uint64
-	// The time period for which we calculated this reputation
+	// The month in seconds since epoch for which we calculated this reputation
 	BeginTime uint64
-	DeltaTime uint64
-	done      bool
 }
 
 func TimeToJSONString(t time.Time) string {
 	const layout = "Jan 2 2006"
 	return t.Format(layout)
+}
+
+// Given a timestamp in seconds since epoch, return the start of that month
+func TruncateMonth(t uint64) uint64 {
+	d := time.Unix(int64(t), 0)
+	return uint64(time.Date(d.Year(), d.Month(), 1, 0, 0, 0, 0, time.UTC).Unix())
+}
+
+func TimestampFromKey(key string) (t uint64, err error) {
+	return strconv.ParseUint(strings.Split(key, ":")[1], 0, 64)
 }
 
 func (summary *CertSummary) ViolatesBR() bool {
@@ -140,6 +149,7 @@ func (issuer *IssuerReputation) Update(summary *CertSummary) {
 	if summary.IsCA {
 		issuer.IsCA += 1
 	}
+	issuer.BeginTime = TruncateMonth(summary.Timestamp)
 }
 
 func (issuer *IssuerReputation) Finish() {
