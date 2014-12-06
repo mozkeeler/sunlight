@@ -84,8 +84,7 @@ func main() {
 				rawScore float,
 				normalizedCount integer,
 				rawCount integer,
-        beginTime bigint,
-        deltaTime bigint)
+        beginTime bigint)
   `
 
 	_, err = db.Exec(createTables)
@@ -130,8 +129,8 @@ func main() {
 				expTooSmallNormalizedScore, expTooSmallRawScore,
 				normalizedScore, rawScore,
 				normalizedCount, rawCount,
-        beginTime, deltaTime)
-	                 values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        beginTime)
+	                 values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	     `
 	insertIssuerStatement, err := tx.Prepare(insertIssuer)
 	if err != nil {
