@@ -165,6 +165,9 @@ func (issuer *IssuerReputation) Finish() {
 }
 
 func CalculateCertSummary(ent *certificatetransparency.EntryAndPosition, ranker *alexa.AlexaRank, rootCAMap map[string]bool) (result *CertSummary, err error) {
+	if ent.Entry.X509Cert == nil {
+		return nil, errors.New("No certificate to parse!")
+	}
 	cert, err := x509.ParseCertificate(ent.Entry.X509Cert)
 	if err != nil {
 		return nil, errors.New("Couldn't parse certificate")
