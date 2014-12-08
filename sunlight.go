@@ -170,7 +170,7 @@ func CalculateCertSummary(ent *certificatetransparency.EntryAndPosition, ranker 
 	}
 	cert, err := x509.ParseCertificate(ent.Entry.X509Cert)
 	if err != nil {
-		return nil, errors.New("Couldn't parse certificate")
+		return nil, err
 	}
 
 	// Filter out certs issued before 2013 or that have already
