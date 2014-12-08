@@ -62,12 +62,14 @@ func TestCertSummary(t *testing.T) {
 	if err != nil {
 		t.Errorf("Shouldn't have failed: %s\n", err)
 	}
+	before := time.Date(2013, 12, 2, 0, 0, 0, 0, time.UTC)
+	after := time.Date(2015, 12, 7, 12, 0, 0, 0, time.UTC)
 	expected := CertSummary{
 		CN:                 "www.mozilla.org",
 		Issuer:             "DigiCert High Assurance EV CA-1",
 		Sha256Fingerprint:  "t1XI8b24uN+bPoKjhlRNRTb1rF/RuJlbd0fs+0tNtSc=",
-		NotBefore:          "Dec 2 2013",
-		NotAfter:           "Dec 7 2015",
+		NotBefore:          before,
+		NotAfter:           after,
 		KeySize:            2048,
 		Exp:                65537,
 		SignatureAlgorithm: 3,
