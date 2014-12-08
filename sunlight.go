@@ -32,8 +32,8 @@ type CertSummary struct {
 	CN                 string
 	Issuer             string
 	Sha256Fingerprint  string
-	NotBefore          time.Time
-	NotAfter           time.Time
+	NotBefore          string
+	NotAfter           string
 	KeySize            int
 	Exp                int
 	SignatureAlgorithm int
@@ -176,8 +176,8 @@ func CalculateCertSummary(ent *certificatetransparency.EntryAndPosition, ranker 
 	summary := CertSummary{}
 	summary.CN = cert.Subject.CommonName
 	summary.Issuer = cert.Issuer.CommonName
-	summary.NotBefore = cert.NotBefore
-	summary.NotAfter = cert.NotAfter
+	summary.NotBefore = TimeToJSONString(cert.NotBefore)
+	summary.NotAfter = TimeToJSONString(cert.NotAfter)
 	summary.IsCA = cert.IsCA
 	summary.Version = cert.Version
 	summary.SignatureAlgorithm = int(cert.SignatureAlgorithm)
