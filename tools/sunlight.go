@@ -155,6 +155,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Failed to open JSON output file %s: %s\n",
 			jsonFile, err)
 		flag.PrintDefaults()
+		os.Exit(1)
 	}
 
 	fmt.Fprintf(out, "{\"Certs\":[")
@@ -171,12 +172,11 @@ func main() {
 
 		summary, err := CalculateCertSummary(ent, &ranker, rootCAMap)
 		if err != nil {
+			fmt.Fprintf(os.Stderr, "Couldn't calculate summary: %s\n", err)
 			return
 		}
-		if summary == nil {
-			fmt.Fprintf(os.Stderr, "wtf\n")
-		}
 		key := fmt.Sprintf("%s:%d", summary.CN, TruncateMonth(summary.Timestamp))
+		fmt.Fprintf(os.Stderr, "Making issuer key %s\n", key)
 		if issuers[key] == nil {
 			issuers[key] = NewIssuerReputation(summary.CN)
 		}
