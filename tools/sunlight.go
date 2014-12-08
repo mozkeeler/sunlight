@@ -175,6 +175,11 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Couldn't calculate summary: %s\n", err)
 			return
 		}
+		if summary == nil {
+			fmt.Fprintf(os.Stderr, "Couldn't calculate summary: %s\n", err)
+			return
+		}
+
 		key := fmt.Sprintf("%s:%d", summary.CN, TruncateMonth(summary.Timestamp))
 		fmt.Fprintf(os.Stderr, "Making issuer key %s\n", key)
 		if issuers[key] == nil {
