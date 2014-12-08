@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/x509"
 	"database/sql"
 	"encoding/json"
 	"flag"
@@ -64,7 +63,8 @@ func main() {
                                      exp integer, signatureAlgorithm integer,
                                      version integer, dnsNames string,
                                      ipAddresses string, maxReputation float,
-                                     issuerInMozillaDB bool);
+                                     issuerInMozillaDB bool,
+                                     timestamp bigint);
   drop table if exists issuerReputation;
 	create table issuerReputation (issuer text,
         issuerInMozillaDB bool,
@@ -83,7 +83,8 @@ func main() {
 				normalizedScore float,
 				rawScore float,
 				normalizedCount integer,
-				rawCount integer)
+				rawCount integer,
+        beginTime bigint)
   `
 
 	_, err = db.Exec(createTables)
@@ -106,8 +107,8 @@ func main() {
                                    keyTooShort, keySize, expTooSmall, exp,
                                    signatureAlgorithm, version, dnsNames,
                                    ipAddresses, maxReputation,
-                                   issuerInMozillaDB)
-              values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                   issuerInMozillaDB, timestamp)
+              values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `
 	insertEntryStatement, err := tx.Prepare(insertEntry)
 	if err != nil {
@@ -127,8 +128,9 @@ func main() {
 				keyTooShortNormalizedScore, keyTooShortRawScore,
 				expTooSmallNormalizedScore, expTooSmallRawScore,
 				normalizedScore, rawScore,
-				normalizedCount, rawCount)
-	                 values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				normalizedCount, rawCount,
+        beginTime)
+	      values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	     `
 	insertIssuerStatement, err := tx.Prepare(insertIssuer)
 	if err != nil {
@@ -153,6 +155,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Failed to open JSON output file %s: %s\n",
 			jsonFile, err)
 		flag.PrintDefaults()
+		os.Exit(1)
 	}
 
 	fmt.Fprintf(out, "{\"Certs\":[")
@@ -167,36 +170,19 @@ func main() {
 			return
 		}
 
-		cert, err := x509.ParseCertificate(ent.Entry.X509Cert)
+		summary, err := CalculateCertSummary(ent, &ranker, rootCAMap)
 		if err != nil {
+			fmt.Fprintf(os.Stderr, "Couldn't calculate summary: %s\n", err)
 			return
 		}
-
-		// Filter out certs issued before 2013 or that have already
-		// expired.
-		now := time.Now()
-		if cert.NotBefore.Before(time.Date(2013, 1, 1, 0, 0, 0, 0, time.UTC)) ||
-			cert.NotAfter.Before(now) {
-			return
-		}
-
-		certList := make([]*x509.Certificate, 0)
-		for _, certBytes := range ent.Entry.ExtraCerts {
-			nextCert, err := x509.ParseCertificate(certBytes)
-			if err != nil {
-				continue
-			}
-			certList = append(certList, nextCert)
-		}
-
-		summary, _ := CalculateCertSummary(cert, &ranker, certList, rootCAMap)
-		if issuers[cert.Issuer.CommonName] == nil {
-			issuers[cert.Issuer.CommonName] = NewIssuerReputation(
-				cert.Issuer.CommonName)
+		key := fmt.Sprintf("%s:%d", summary.CN, TruncateMonth(summary.Timestamp))
+		fmt.Fprintf(os.Stderr, "Making issuer key %s\n", key)
+		if issuers[key] == nil {
+			issuers[key] = NewIssuerReputation(summary.CN)
 		}
 		// Update issuer reputation whether or not the cert violates baseline
 		// requirements.
-		issuers[cert.Issuer.CommonName].Update(summary)
+		issuers[key].Update(summary)
 		if summary != nil && summary.ViolatesBR() {
 			dnsNamesAsString, err := json.Marshal(summary.DnsNames)
 			if err != nil {
@@ -210,7 +196,7 @@ func main() {
 			}
 			_, err = insertEntryStatement.Exec(summary.CN, summary.Issuer,
 				summary.Sha256Fingerprint,
-				cert.NotBefore, cert.NotAfter,
+				summary.NotBefore, summary.NotAfter,
 				summary.Violations[VALID_PERIOD_TOO_LONG],
 				summary.Violations[DEPRECATED_SIGNATURE_ALGORITHM],
 				summary.Violations[DEPRECATED_VERSION],
@@ -221,7 +207,8 @@ func main() {
 				summary.Version, dnsNamesAsString,
 				ipAddressesAsString,
 				summary.MaxReputation,
-				summary.IssuerInMozillaDB)
+				summary.IssuerInMozillaDB,
+				summary.Timestamp)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Failed to insert entry: %s\n", err)
 				os.Exit(1)
@@ -264,7 +251,8 @@ func main() {
 			issuer.NormalizedScore,
 			issuer.RawScore,
 			issuer.NormalizedCount,
-			issuer.RawCount)
+			issuer.RawCount,
+			issuer.BeginTime)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to insert entry: %s\n", err)
 			os.Exit(1)
