@@ -2,7 +2,6 @@ package sunlight
 
 import (
 	"bytes"
-	//"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
 	"github.com/monicachew/certificatetransparency"
@@ -46,9 +45,7 @@ upuIlUgiDZN7izlGZeqCM5mgBvnlYA0QcwdIpNy4S7JGp8KrhAW/0uo=
 
 func TestCertSummary(t *testing.T) {
 	pemBlock, _ := pem.Decode([]byte(pemCertificate))
-	//cert, _ := x509.ParseCertificate(pemBlock.Bytes)
 	fakeRootCAMap := make(map[string]bool)
-	//fakeCertList := make([]*x509.Certificate, 0)
 	fakeList := [][]byte(nil)
 	ct_entry := certificatetransparency.Entry{
 		X509Cert:   pemBlock.Bytes,
@@ -66,8 +63,8 @@ func TestCertSummary(t *testing.T) {
 		CN:                 "www.mozilla.org",
 		Issuer:             "DigiCert High Assurance EV CA-1",
 		Sha256Fingerprint:  "t1XI8b24uN+bPoKjhlRNRTb1rF/RuJlbd0fs+0tNtSc=",
-		NotBefore:          "Dec 2 2013",
-		NotAfter:           "Dec 7 2015",
+		NotBefore:          time.Date(2013, 12, 2, 0, 0, 0, 0, time.UTC),
+		NotAfter:           time.Date(2015, 12, 7, 12, 0, 0, 0, time.UTC),
 		KeySize:            2048,
 		Exp:                65537,
 		SignatureAlgorithm: 3,

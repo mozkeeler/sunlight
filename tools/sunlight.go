@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/x509"
 	"database/sql"
 	"encoding/json"
 	"flag"
@@ -174,10 +173,6 @@ func main() {
 		if summary != nil {
 			return
 		}
-		cert, err := x509.ParseCertificate(ent.Entry.X509Cert)
-		if err != nil {
-			return
-		}
 		if issuers[summary.CN] == nil {
 			issuers[summary.CN] = NewIssuerReputation(summary.CN)
 		}
@@ -197,7 +192,7 @@ func main() {
 			}
 			_, err = insertEntryStatement.Exec(summary.CN, summary.Issuer,
 				summary.Sha256Fingerprint,
-				cert.NotBefore, cert.NotAfter,
+				summary.NotBefore, summary.NotAfter,
 				summary.Violations[VALID_PERIOD_TOO_LONG],
 				summary.Violations[DEPRECATED_SIGNATURE_ALGORITHM],
 				summary.Violations[DEPRECATED_VERSION],

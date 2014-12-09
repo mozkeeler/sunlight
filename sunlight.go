@@ -32,8 +32,8 @@ type CertSummary struct {
 	CN                 string
 	Issuer             string
 	Sha256Fingerprint  string
-	NotBefore          string
-	NotAfter           string
+	NotBefore          time.Time
+	NotAfter           time.Time
 	KeySize            int
 	Exp                int
 	SignatureAlgorithm int
@@ -67,11 +67,6 @@ type IssuerReputation struct {
 	// Total count of certs issued by this issuer
 	RawCount uint64
 	done     bool
-}
-
-func TimeToJSONString(t time.Time) string {
-	const layout = "Jan 2 2006"
-	return t.Format(layout)
 }
 
 func (summary *CertSummary) ViolatesBR() bool {
@@ -176,8 +171,8 @@ func CalculateCertSummary(ent *certificatetransparency.EntryAndPosition, ranker 
 	summary := CertSummary{}
 	summary.CN = cert.Subject.CommonName
 	summary.Issuer = cert.Issuer.CommonName
-	summary.NotBefore = TimeToJSONString(cert.NotBefore)
-	summary.NotAfter = TimeToJSONString(cert.NotAfter)
+	summary.NotBefore = cert.NotBefore
+	summary.NotAfter = cert.NotAfter
 	summary.IsCA = cert.IsCA
 	summary.Version = cert.Version
 	summary.SignatureAlgorithm = int(cert.SignatureAlgorithm)
