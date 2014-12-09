@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/x509"
 	"database/sql"
 	"encoding/json"
 	"flag"
@@ -166,7 +167,7 @@ func main() {
 
 	issuers := make(map[string]*IssuerReputation)
 	entriesFile.Map(func(ent *certificatetransparency.EntryAndPosition, err error) {
-		if err != nil {
+		if err != nil || ent == nil {
 			return
 		}
 
@@ -180,10 +181,12 @@ func main() {
 			return
 		}
 
-		key := fmt.Sprintf("%s:%d", summary.CN, TruncateMonth(summary.Timestamp))
+		cert, err := x509.ParseCertificate(ent.Entry.X509Cert)
+		key := fmt.Sprintf("%s:%d", cert.Subject.CommonName, TruncateMonth(ent.Entry.Timestamp))
+		key = "hello"
 		fmt.Fprintf(os.Stderr, "Making issuer key %s\n", key)
 		if issuers[key] == nil {
-			issuers[key] = NewIssuerReputation(summary.CN)
+			issuers[key] = NewIssuerReputation(key)
 		}
 		// Update issuer reputation whether or not the cert violates baseline
 		// requirements.
