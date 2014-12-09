@@ -44,6 +44,7 @@ type CertSummary struct {
 	Violations         map[string]bool
 	MaxReputation      float32
 	IssuerInMozillaDB  bool
+	Timestamp          uint64
 }
 
 type IssuerReputationScore struct {
@@ -169,6 +170,7 @@ func CalculateCertSummary(ent *certificatetransparency.EntryAndPosition, ranker 
 	}
 
 	summary := CertSummary{}
+	summary.Timestamp = ent.Entry.Timestamp
 	summary.CN = cert.Subject.CommonName
 	summary.Issuer = cert.Issuer.CommonName
 	summary.NotBefore = cert.NotBefore

@@ -47,10 +47,12 @@ func TestCertSummary(t *testing.T) {
 	pemBlock, _ := pem.Decode([]byte(pemCertificate))
 	fakeRootCAMap := make(map[string]bool)
 	fakeList := [][]byte(nil)
+	d := time.Now()
 	ct_entry := certificatetransparency.Entry{
 		X509Cert:   pemBlock.Bytes,
-		Time:       time.Now(),
+		Time:       d,
 		ExtraCerts: fakeList,
+		Timestamp:  uint64(d.Unix()),
 	}
 	ent := certificatetransparency.EntryAndPosition{
 		Entry: &ct_entry,
@@ -85,6 +87,7 @@ func TestCertSummary(t *testing.T) {
 		},
 		MaxReputation:     0,
 		IssuerInMozillaDB: false,
+		Timestamp:         uint64(d.Unix()),
 	}
 
 	b, _ := json.MarshalIndent(summary, "", "  ")
