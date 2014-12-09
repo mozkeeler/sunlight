@@ -67,6 +67,7 @@ func main() {
                                      issuerInMozillaDB bool);
   drop table if exists issuerReputation;
 	create table issuerReputation (issuer text,
+				issuerInMozillaDB bool,
 				validPeriodTooLongNormalizedScore float,
 				validPeriodTooLongRawscore float,
 				deprecatedVersionNormalizedScore float,
@@ -117,6 +118,7 @@ func main() {
 
 	insertIssuer := `
 	     insert into issuerReputation(issuer,
+				issuerInMozillaDB,
 				validPeriodTooLongNormalizedScore, validPeriodTooLongRawscore,
 				deprecatedVersionNormalizedScore, deprecatedVersionRawScore,
 				deprecatedSignatureAlgorithmNormalizedScore,
@@ -126,7 +128,7 @@ func main() {
 				expTooSmallNormalizedScore, expTooSmallRawScore,
 				normalizedScore, rawScore,
 				normalizedCount, rawCount)
-	                 values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	                 values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	     `
 	insertIssuerStatement, err := tx.Prepare(insertIssuer)
 	if err != nil {
@@ -246,6 +248,7 @@ func main() {
 	for _, issuer := range issuers {
 		issuer.Finish()
 		_, err = insertIssuerStatement.Exec(issuer.Issuer,
+			issuer.IssuerInMozillaDB,
 			issuer.Scores[VALID_PERIOD_TOO_LONG].NormalizedScore,
 			issuer.Scores[VALID_PERIOD_TOO_LONG].RawScore,
 			issuer.Scores[DEPRECATED_VERSION].NormalizedScore,
