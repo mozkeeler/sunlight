@@ -6,9 +6,11 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/monicachew/alexa"
+	"github.com/monicachew/certificatetransparency"
 	"io/ioutil"
 	"net"
 	"os"
@@ -30,8 +32,8 @@ type CertSummary struct {
 	CN                 string
 	Issuer             string
 	Sha256Fingerprint  string
-	NotBefore          string
-	NotAfter           string
+	NotBefore          time.Time
+	NotAfter           time.Time
 	KeySize            int
 	Exp                int
 	SignatureAlgorithm int
@@ -42,6 +44,7 @@ type CertSummary struct {
 	Violations         map[string]bool
 	MaxReputation      float32
 	IssuerInMozillaDB  bool
+	Timestamp          uint64
 }
 
 type IssuerReputationScore struct {
@@ -65,11 +68,6 @@ type IssuerReputation struct {
 	// Total count of certs issued by this issuer
 	RawCount uint64
 	done     bool
-}
-
-func TimeToJSONString(t time.Time) string {
-	const layout = "Jan 2 2006"
-	return t.Format(layout)
 }
 
 func (summary *CertSummary) ViolatesBR() bool {
@@ -148,13 +146,35 @@ func (issuer *IssuerReputation) Finish() {
 	issuer.RawScore = rawSum / float32(len(issuer.Scores))
 }
 
-func CalculateCertSummary(cert *x509.Certificate, ranker *alexa.AlexaRank,
-	certChain []*x509.Certificate, rootCAMap map[string]bool) (result *CertSummary, err error) {
+func CalculateCertSummary(ent *certificatetransparency.EntryAndPosition, ranker *alexa.AlexaRank, rootCAMap map[string]bool) (result *CertSummary, err error) {
+	cert, err := x509.ParseCertificate(ent.Entry.X509Cert)
+	if err != nil {
+		return nil, errors.New("Couldn't parse certificate")
+	}
+
+	// Filter out certs issued before 2013 or that have already
+	// expired.
+	now := time.Now()
+	if cert.NotBefore.Before(time.Date(2013, 1, 1, 0, 0, 0, 0, time.UTC)) ||
+		cert.NotAfter.Before(now) {
+		return nil, errors.New("Cert too old")
+	}
+
+	certList := make([]*x509.Certificate, 0)
+	for _, certBytes := range ent.Entry.ExtraCerts {
+		nextCert, err := x509.ParseCertificate(certBytes)
+		if err != nil {
+			continue
+		}
+		certList = append(certList, nextCert)
+	}
+
 	summary := CertSummary{}
+	summary.Timestamp = ent.Entry.Timestamp
 	summary.CN = cert.Subject.CommonName
 	summary.Issuer = cert.Issuer.CommonName
-	summary.NotBefore = TimeToJSONString(cert.NotBefore)
-	summary.NotAfter = TimeToJSONString(cert.NotAfter)
+	summary.NotBefore = cert.NotBefore
+	summary.NotAfter = cert.NotAfter
 	summary.IsCA = cert.IsCA
 	summary.Version = cert.Version
 	summary.SignatureAlgorithm = int(cert.SignatureAlgorithm)
@@ -216,7 +236,7 @@ func CalculateCertSummary(cert *x509.Certificate, ranker *alexa.AlexaRank,
 		summary.IpAddresses = append(summary.IpAddresses, address.String())
 	}
 
-	summary.IssuerInMozillaDB = containsIssuerInRootList(certChain, rootCAMap)
+	summary.IssuerInMozillaDB = containsIssuerInRootList(certList, rootCAMap)
 
 	// Assume a 0-length CN means it isn't present (this isn't a good
 	// assumption). If the CN is missing, then it can't be missing CN in SAN.
