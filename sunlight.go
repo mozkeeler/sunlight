@@ -6,12 +6,15 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/monicachew/alexa"
+	"github.com/monicachew/certificatetransparency"
 	"io/ioutil"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -30,8 +33,8 @@ type CertSummary struct {
 	CN                 string
 	Issuer             string
 	Sha256Fingerprint  string
-	NotBefore          string
-	NotAfter           string
+	NotBefore          time.Time
+	NotAfter           time.Time
 	KeySize            int
 	Exp                int
 	SignatureAlgorithm int
@@ -42,6 +45,7 @@ type CertSummary struct {
 	Violations         map[string]bool
 	MaxReputation      float32
 	IssuerInMozillaDB  bool
+	Timestamp          uint64
 }
 
 type IssuerReputationScore struct {
@@ -64,12 +68,23 @@ type IssuerReputation struct {
 	NormalizedCount uint64
 	// Total count of certs issued by this issuer
 	RawCount uint64
-	done     bool
+	// The month in seconds since epoch for which we calculated this reputation
+	BeginTime uint64
 }
 
 func TimeToJSONString(t time.Time) string {
 	const layout = "Jan 2 2006"
 	return t.Format(layout)
+}
+
+// Given a timestamp in seconds since epoch, return the start of that month
+func TruncateMonth(t uint64) uint64 {
+	d := time.Unix(int64(t), 0)
+	return uint64(time.Date(d.Year(), d.Month(), 1, 0, 0, 0, 0, time.UTC).Unix())
+}
+
+func TimestampFromKey(key string) (t uint64, err error) {
+	return strconv.ParseUint(strings.Split(key, ":")[1], 0, 64)
 }
 
 func (summary *CertSummary) ViolatesBR() bool {
@@ -134,6 +149,7 @@ func (issuer *IssuerReputation) Update(summary *CertSummary) {
 	if summary.IsCA {
 		issuer.IsCA += 1
 	}
+	issuer.BeginTime = TruncateMonth(summary.Timestamp)
 }
 
 func (issuer *IssuerReputation) Finish() {
@@ -148,13 +164,37 @@ func (issuer *IssuerReputation) Finish() {
 	issuer.RawScore = rawSum / float32(len(issuer.Scores))
 }
 
-func CalculateCertSummary(cert *x509.Certificate, ranker *alexa.AlexaRank,
-	certChain []*x509.Certificate, rootCAMap map[string]bool) (result *CertSummary, err error) {
+func CalculateCertSummary(ent *certificatetransparency.EntryAndPosition, ranker *alexa.AlexaRank, rootCAMap map[string]bool) (result *CertSummary, err error) {
+	if ent.Entry.X509Cert == nil {
+		return nil, errors.New("No certificate to parse!")
+	}
+	cert, err := x509.ParseCertificate(ent.Entry.X509Cert)
+	if err != nil {
+		return nil, err
+	}
+
+	// Filter out certs issued before 2013 or that have already
+	// expired.
+	now := time.Now()
+	if cert.NotBefore.Before(time.Date(2013, 1, 1, 0, 0, 0, 0, time.UTC)) ||
+		cert.NotAfter.Before(now) {
+		return nil, errors.New("Cert too old")
+	}
+
+	certList := make([]*x509.Certificate, 0)
+	for _, certBytes := range ent.Entry.ExtraCerts {
+		nextCert, err := x509.ParseCertificate(certBytes)
+		if err != nil {
+			continue
+		}
+		certList = append(certList, nextCert)
+	}
+
 	summary := CertSummary{}
 	summary.CN = cert.Subject.CommonName
 	summary.Issuer = cert.Issuer.CommonName
-	summary.NotBefore = TimeToJSONString(cert.NotBefore)
-	summary.NotAfter = TimeToJSONString(cert.NotAfter)
+	summary.NotBefore = cert.NotBefore
+	summary.NotAfter = cert.NotAfter
 	summary.IsCA = cert.IsCA
 	summary.Version = cert.Version
 	summary.SignatureAlgorithm = int(cert.SignatureAlgorithm)
@@ -166,6 +206,7 @@ func CalculateCertSummary(cert *x509.Certificate, ranker *alexa.AlexaRank,
 		EXP_TOO_SMALL:                  false,
 		MISSING_CN_IN_SAN:              false,
 	}
+	summary.Timestamp = ent.Entry.Timestamp
 
 	// BR 9.4.1: Validity period is longer than 5 years.  This
 	// should be restricted to certs that don't have CA:True
@@ -216,7 +257,7 @@ func CalculateCertSummary(cert *x509.Certificate, ranker *alexa.AlexaRank,
 		summary.IpAddresses = append(summary.IpAddresses, address.String())
 	}
 
-	summary.IssuerInMozillaDB = containsIssuerInRootList(certChain, rootCAMap)
+	summary.IssuerInMozillaDB = containsIssuerInRootList(certList, rootCAMap)
 
 	// Assume a 0-length CN means it isn't present (this isn't a good
 	// assumption). If the CN is missing, then it can't be missing CN in SAN.
