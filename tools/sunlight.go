@@ -63,7 +63,8 @@ func main() {
                                      exp integer, signatureAlgorithm integer,
                                      version integer, dnsNames string,
                                      ipAddresses string, maxReputation float,
-                                     issuerInMozillaDB bool);
+                                     issuerInMozillaDB bool,
+                                     timestamp bigint);
   drop table if exists issuerReputation;
 	create table issuerReputation (issuer text,
 				issuerInMozillaDB bool,
@@ -105,8 +106,8 @@ func main() {
                                    keyTooShort, keySize, expTooSmall, exp,
                                    signatureAlgorithm, version, dnsNames,
                                    ipAddresses, maxReputation,
-                                   issuerInMozillaDB)
-              values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                   issuerInMozillaDB, timestamp)
+              values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `
 	insertEntryStatement, err := tx.Prepare(insertEntry)
 	if err != nil {
@@ -203,7 +204,8 @@ func main() {
 				summary.Version, dnsNamesAsString,
 				ipAddressesAsString,
 				summary.MaxReputation,
-				summary.IssuerInMozillaDB)
+				summary.IssuerInMozillaDB,
+				summary.Timestamp)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Failed to insert entry: %s\n", err)
 				os.Exit(1)
