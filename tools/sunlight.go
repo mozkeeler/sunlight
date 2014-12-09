@@ -1,8 +1,10 @@
 package main
 
 import (
+	"crypto/sha256"
 	"crypto/x509"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -183,7 +185,11 @@ func main() {
 
 		cert, err := x509.ParseCertificate(ent.Entry.X509Cert)
 		key := fmt.Sprintf("%s:%d", cert.Subject.CommonName, TruncateMonth(ent.Entry.Timestamp))
-		key = "hello"
+		sha256hasher := sha256.New()
+		sha256hasher.Write([]byte(cert.Subject.CommonName))
+		sha256hasher.Write([]byte(":"))
+		sha256hasher.Write([]byte(ent.Entry.Time.String()))
+		key = base64.StdEncoding.EncodeToString(sha256hasher.Sum(nil))
 		fmt.Fprintf(os.Stderr, "Making issuer key %s\n", key)
 		if issuers[key] == nil {
 			issuers[key] = NewIssuerReputation(key)
