@@ -67,7 +67,7 @@ func main() {
                                      issuerInMozillaDB bool);
   drop table if exists issuerReputation;
 	create table issuerReputation (issuer text,
-        issuerInMozillaDB bool,
+				issuerInMozillaDB bool,
 				validPeriodTooLongNormalizedScore float,
 				validPeriodTooLongRawscore float,
 				deprecatedVersionNormalizedScore float,
@@ -118,7 +118,7 @@ func main() {
 
 	insertIssuer := `
 	     insert into issuerReputation(issuer,
-        issuerInMozillaDB,
+				issuerInMozillaDB,
 				validPeriodTooLongNormalizedScore, validPeriodTooLongRawscore,
 				deprecatedVersionNormalizedScore, deprecatedVersionRawScore,
 				deprecatedSignatureAlgorithmNormalizedScore,
