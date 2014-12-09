@@ -192,17 +192,30 @@ func main() {
 			certList = append(certList, nextCert)
 		}
 
-		summary, _ := CalculateCertSummary(cert, ent.Entry.Timestamp, &ranker, certList, rootCAMap)
-		key := cert.Issuer.CommonName
-		//key := fmt.Sprintf("%s:%d", cert.Issuer.CommonName, ent.Entry.Timestamp)
+		summary, err := CalculateCertSummary(cert, ent.Entry.Timestamp, &ranker, certList, rootCAMap)
+		if err != nil {
+			return
+		}
+		if summary == nil {
+			fmt.Fprintf(os.Stderr, "Couldn't allocate new cert summary\n")
+			os.Exit(1)
+		}
+		// Works
+		// key := cert.Issuer.CommonName
+		// Doesn't work
+		key := fmt.Sprintf("%s:%d", cert.Issuer.CommonName, TruncateMonth(ent.Entry.Timestamp))
 		if issuers[key] == nil {
 			issuers[key] = NewIssuerReputation(
 				cert.Issuer.CommonName, ent.Entry.Timestamp)
 		}
+		if issuers[key] == nil {
+			fmt.Fprintf(os.Stderr, "Couldn't allocate new issuer reputation\n")
+			os.Exit(1)
+		}
 		// Update issuer reputation whether or not the cert violates baseline
 		// requirements.
 		issuers[key].Update(summary)
-		if summary != nil && summary.ViolatesBR() {
+		if summary.ViolatesBR() {
 			dnsNamesAsString, err := json.Marshal(summary.DnsNames)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Failed to convert to JSON: %s\n", err)
