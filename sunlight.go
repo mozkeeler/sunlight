@@ -42,6 +42,7 @@ type CertSummary struct {
 	Violations         map[string]bool
 	MaxReputation      float32
 	IssuerInMozillaDB  bool
+	Timestamp          uint64
 }
 
 type IssuerReputationScore struct {
@@ -63,8 +64,14 @@ type IssuerReputation struct {
 	// Total count of certs issued by this issuer for domains in Alexa.
 	NormalizedCount uint64
 	// Total count of certs issued by this issuer
-	RawCount uint64
-	done     bool
+	RawCount  uint64
+	BeginTime uint64
+	done      bool
+}
+
+func TruncateMonth(t uint64) uint64 {
+	d := time.Unix(int64(t), 0)
+	return uint64(time.Date(d.Year(), d.Month(), 1, 0, 0, 0, 0, time.UTC).Unix())
 }
 
 func TimeToJSONString(t time.Time) string {
@@ -90,8 +97,9 @@ func containsIssuerInRootList(certChain []*x509.Certificate, rootCAMap map[strin
 	return false
 }
 
-func NewIssuerReputation(issuer string) *IssuerReputation {
+func NewIssuerReputation(issuer string, timestamp uint64) *IssuerReputation {
 	reputation := new(IssuerReputation)
+	reputation.BeginTime = TruncateMonth(timestamp)
 	reputation.Issuer = issuer
 	reputation.Scores = make(map[string]*IssuerReputationScore)
 	return reputation
@@ -148,9 +156,10 @@ func (issuer *IssuerReputation) Finish() {
 	issuer.RawScore = rawSum / float32(len(issuer.Scores))
 }
 
-func CalculateCertSummary(cert *x509.Certificate, ranker *alexa.AlexaRank,
+func CalculateCertSummary(cert *x509.Certificate, timestamp uint64, ranker *alexa.AlexaRank,
 	certChain []*x509.Certificate, rootCAMap map[string]bool) (result *CertSummary, err error) {
 	summary := CertSummary{}
+	summary.Timestamp = timestamp
 	summary.CN = cert.Subject.CommonName
 	summary.Issuer = cert.Issuer.CommonName
 	summary.NotBefore = TimeToJSONString(cert.NotBefore)
