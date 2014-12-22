@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"testing"
+	"time"
 )
 
 const pemCertificate = `-----BEGIN CERTIFICATE-----
@@ -25,7 +26,8 @@ func TestCertSummary(t *testing.T) {
 	cert, _ := x509.ParseCertificate(pemBlock.Bytes)
 	fakeRootCAMap := make(map[string]bool)
 	fakeCertList := make([]*x509.Certificate, 0)
-	summary, _ := CalculateCertSummary(cert, nil, fakeCertList, fakeRootCAMap)
+	ts := uint64(time.Now().Unix())
+	summary, _ := CalculateCertSummary(cert, ts, nil, fakeCertList, fakeRootCAMap)
 	expected := CertSummary{
 		CN:                 "test.example.com",
 		Issuer:             "test.example.com",
@@ -48,6 +50,7 @@ func TestCertSummary(t *testing.T) {
 			VALID_PERIOD_TOO_LONG:          false,
 		},
 		MaxReputation: 0,
+		Timestamp:     ts,
 	}
 	b, _ := json.MarshalIndent(summary, "", "  ")
 	expected_b, _ := json.MarshalIndent(expected, "", "  ")
@@ -57,6 +60,7 @@ func TestCertSummary(t *testing.T) {
 }
 
 func TestIssuerReputation(t *testing.T) {
+	ts := uint64(time.Now().Unix())
 	summary := CertSummary{
 		CN:                "example.com",
 		Issuer:            "Honest Al",
@@ -71,6 +75,7 @@ func TestIssuerReputation(t *testing.T) {
 		},
 		MaxReputation:     0.1,
 		IssuerInMozillaDB: false,
+		Timestamp:         ts,
 	}
 	unknown_summary := CertSummary{
 		CN:                "unknown.example.com",
@@ -87,8 +92,9 @@ func TestIssuerReputation(t *testing.T) {
 		IsCA:              false,
 		MaxReputation:     -1,
 		IssuerInMozillaDB: false,
+		Timestamp:         ts,
 	}
-	issuer := NewIssuerReputation("Honest Al")
+	issuer := NewIssuerReputation("Honest Al", ts)
 	issuer.Update(&summary)
 	issuer.Update(&unknown_summary)
 	issuer.Finish()
@@ -137,6 +143,7 @@ func TestIssuerReputation(t *testing.T) {
 		RawScore:        0.6666667,
 		NormalizedCount: 1,
 		RawCount:        2,
+		BeginTime:       TruncateMonth(ts),
 	}
 	b, _ := json.MarshalIndent(issuer, "", "  ")
 	expected_b, _ := json.MarshalIndent(expected_issuer, "", "  ")

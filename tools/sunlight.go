@@ -64,7 +64,8 @@ func main() {
                                      exp integer, signatureAlgorithm integer,
                                      version integer, dnsNames string,
                                      ipAddresses string, maxReputation float,
-                                     issuerInMozillaDB bool);
+                                     issuerInMozillaDB bool,
+																		 timestamp bigint);
   drop table if exists issuerReputation;
 	create table issuerReputation (issuer text,
 				issuerInMozillaDB bool,
@@ -83,7 +84,8 @@ func main() {
 				normalizedScore float,
 				rawScore float,
 				normalizedCount integer,
-				rawCount integer)
+				rawCount integer,
+				beginTime bigint)
   `
 
 	_, err = db.Exec(createTables)
@@ -106,8 +108,9 @@ func main() {
                                    keyTooShort, keySize, expTooSmall, exp,
                                    signatureAlgorithm, version, dnsNames,
                                    ipAddresses, maxReputation,
-                                   issuerInMozillaDB)
-              values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                   issuerInMozillaDB,
+																	 timestamp)
+              values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `
 	insertEntryStatement, err := tx.Prepare(insertEntry)
 	if err != nil {
@@ -127,8 +130,8 @@ func main() {
 				keyTooShortNormalizedScore, keyTooShortRawScore,
 				expTooSmallNormalizedScore, expTooSmallRawScore,
 				normalizedScore, rawScore,
-				normalizedCount, rawCount)
-	                 values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				normalizedCount, rawCount, beginTime)
+	                 values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	     `
 	insertIssuerStatement, err := tx.Prepare(insertIssuer)
 	if err != nil {
@@ -161,6 +164,7 @@ func main() {
 
 	rootCAMap := ReadRootCAMap(rootCAFile)
 
+	issuersLock := new(sync.Mutex)
 	issuers := make(map[string]*IssuerReputation)
 	entriesFile.Map(func(ent *certificatetransparency.EntryAndPosition, err error) {
 		if err != nil {
@@ -189,15 +193,29 @@ func main() {
 			certList = append(certList, nextCert)
 		}
 
-		summary, _ := CalculateCertSummary(cert, &ranker, certList, rootCAMap)
-		if issuers[cert.Issuer.CommonName] == nil {
-			issuers[cert.Issuer.CommonName] = NewIssuerReputation(
-				cert.Issuer.CommonName)
+		summary, err := CalculateCertSummary(cert, ent.Entry.Timestamp, &ranker, certList, rootCAMap)
+		if err != nil {
+			return
+		}
+		if summary == nil {
+			fmt.Fprintf(os.Stderr, "Couldn't allocate new cert summary\n")
+			os.Exit(1)
+		}
+		key := fmt.Sprintf("%s:%d", cert.Issuer.CommonName, TruncateMonth(ent.Entry.Timestamp))
+		issuersLock.Lock()
+		if issuers[key] == nil {
+			issuers[key] = NewIssuerReputation(
+				cert.Issuer.CommonName, ent.Entry.Timestamp)
+		}
+		if issuers[key] == nil {
+			fmt.Fprintf(os.Stderr, "Couldn't allocate new issuer reputation\n")
+			os.Exit(1)
 		}
 		// Update issuer reputation whether or not the cert violates baseline
 		// requirements.
-		issuers[cert.Issuer.CommonName].Update(summary)
-		if summary != nil && summary.ViolatesBR() {
+		issuers[key].Update(summary)
+		issuersLock.Unlock()
+		if summary.ViolatesBR() {
 			dnsNamesAsString, err := json.Marshal(summary.DnsNames)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Failed to convert to JSON: %s\n", err)
@@ -221,7 +239,8 @@ func main() {
 				summary.Version, dnsNamesAsString,
 				ipAddressesAsString,
 				summary.MaxReputation,
-				summary.IssuerInMozillaDB)
+				summary.IssuerInMozillaDB,
+				summary.Timestamp)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Failed to insert entry: %s\n", err)
 				os.Exit(1)
@@ -264,7 +283,8 @@ func main() {
 			issuer.NormalizedScore,
 			issuer.RawScore,
 			issuer.NormalizedCount,
-			issuer.RawCount)
+			issuer.RawCount,
+			issuer.BeginTime)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to insert entry: %s\n", err)
 			os.Exit(1)
