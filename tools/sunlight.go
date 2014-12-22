@@ -164,6 +164,7 @@ func main() {
 
 	rootCAMap := ReadRootCAMap(rootCAFile)
 
+	issuersLock := new(sync.Mutex)
 	issuers := make(map[string]*IssuerReputation)
 	entriesFile.Map(func(ent *certificatetransparency.EntryAndPosition, err error) {
 		if err != nil {
@@ -204,6 +205,7 @@ func main() {
 		// key := cert.Issuer.CommonName
 		// Doesn't work
 		key := fmt.Sprintf("%s:%d", cert.Issuer.CommonName, TruncateMonth(ent.Entry.Timestamp))
+		issuersLock.Lock()
 		if issuers[key] == nil {
 			issuers[key] = NewIssuerReputation(
 				cert.Issuer.CommonName, ent.Entry.Timestamp)
@@ -215,6 +217,7 @@ func main() {
 		// Update issuer reputation whether or not the cert violates baseline
 		// requirements.
 		issuers[key].Update(summary)
+		issuersLock.Unlock()
 		if summary.ViolatesBR() {
 			dnsNamesAsString, err := json.Marshal(summary.DnsNames)
 			if err != nil {
