@@ -201,9 +201,6 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Couldn't allocate new cert summary\n")
 			os.Exit(1)
 		}
-		// Works
-		// key := cert.Issuer.CommonName
-		// Doesn't work
 		key := fmt.Sprintf("%s:%d", cert.Issuer.CommonName, TruncateMonth(ent.Entry.Timestamp))
 		issuersLock.Lock()
 		if issuers[key] == nil {
