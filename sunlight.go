@@ -69,9 +69,15 @@ type IssuerReputation struct {
 	done      bool
 }
 
+// Given a time since the epoch in milliseconds, returns a time since the
+// epoch in milliseconds that is the GMT time of the month that most
+// recently began before that time.
 func TruncateMonth(t uint64) uint64 {
-	d := time.Unix(int64(t), 0)
-	return uint64(time.Date(d.Year(), d.Month(), 1, 0, 0, 0, 0, time.UTC).Unix())
+	// t is in milliseconds, but time.Unix wants its first argument in seconds
+	d := time.Unix(int64(t)/1000, 0)
+	truncated := time.Date(d.Year(), d.Month(), 1, 0, 0, 0, 0, time.UTC)
+	// again, time.Unix returns seconds - we want milliseconds
+	return uint64(truncated.Unix()) * 1000
 }
 
 func TimeToJSONString(t time.Time) string {
