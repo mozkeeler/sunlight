@@ -53,40 +53,42 @@ func main() {
 	defer db.Close()
 
 	createTables := `
-  drop table if exists baselineRequirements;
-  create table baselineRequirements (cn text, issuer text,
-                                     sha256Fingerprint text, notBefore date,
-                                     notAfter date, validPeriodTooLong bool,
-                                     deprecatedSignatureAlgorithm bool,
-                                     deprecatedVersion bool,
-                                     missingCNinSAN bool, keyTooShort bool,
-                                     keySize integer, expTooSmall bool,
-                                     exp integer, signatureAlgorithm integer,
-                                     version integer, dnsNames string,
-                                     ipAddresses string, maxReputation float,
-                                     issuerInMozillaDB bool,
-																		 timestamp bigint);
-  drop table if exists issuerReputation;
-	create table issuerReputation (issuer text,
-				issuerInMozillaDB bool,
-				validPeriodTooLongNormalizedScore float,
-				validPeriodTooLongRawscore float,
-				deprecatedVersionNormalizedScore float,
-				deprecatedVersionRawScore float,
-				deprecatedSignatureAlgorithmNormalizedScore float,
-				deprecatedSignatureAlgorithmRawScore float,
-				missingCNinSANNormalizedScore float,
-				missingCNinSANRawScore float,
-				keyTooShortNormalizedScore float,
-				keyTooShortRawScore float,
-				expTooSmallNormalizedScore float,
-				expTooSmallRawScore float,
-				normalizedScore float,
-				rawScore float,
-				normalizedCount integer,
-				rawCount integer,
-				beginTime bigint)
-  `
+	drop table if exists baselineRequirements;
+	create table baselineRequirements(
+		cn text, issuer text,
+		sha256Fingerprint text, notBefore date,
+		notAfter date, validPeriodTooLong bool,
+		deprecatedSignatureAlgorithm bool,
+		deprecatedVersion bool,
+		missingCNinSAN bool, keyTooShort bool,
+		keySize integer, expTooSmall bool,
+		exp integer, signatureAlgorithm integer,
+		version integer, dnsNames string,
+		ipAddresses string, maxReputation float,
+		issuerInMozillaDB bool,
+		timestamp bigint);
+	drop table if exists issuerReputation;
+	create table issuerReputation(
+		issuer text,
+		issuerInMozillaDB bool,
+		validPeriodTooLongNormalizedScore float,
+		validPeriodTooLongRawscore float,
+		deprecatedVersionNormalizedScore float,
+		deprecatedVersionRawScore float,
+		deprecatedSignatureAlgorithmNormalizedScore float,
+		deprecatedSignatureAlgorithmRawScore float,
+		missingCNinSANNormalizedScore float,
+		missingCNinSANRawScore float,
+		keyTooShortNormalizedScore float,
+		keyTooShortRawScore float,
+		expTooSmallNormalizedScore float,
+		expTooSmallRawScore float,
+		normalizedScore float,
+		rawScore float,
+		normalizedCount integer,
+		rawCount integer,
+		beginTime bigint)
+	`
 
 	_, err = db.Exec(createTables)
 	if err != nil {
@@ -101,17 +103,17 @@ func main() {
 	}
 
 	insertEntry := `
-  insert into baselineRequirements(cn, issuer, sha256Fingerprint, notBefore,
-                                   notAfter, validPeriodTooLong,
-                                   deprecatedSignatureAlgorithm,
-                                   deprecatedVersion, missingCNinSAN,
-                                   keyTooShort, keySize, expTooSmall, exp,
-                                   signatureAlgorithm, version, dnsNames,
-                                   ipAddresses, maxReputation,
-                                   issuerInMozillaDB,
-																	 timestamp)
-              values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `
+	insert into baselineRequirements(
+		cn, issuer, sha256Fingerprint, notBefore,
+		notAfter, validPeriodTooLong,
+		deprecatedSignatureAlgorithm,
+		deprecatedVersion, missingCNinSAN,
+		keyTooShort, keySize, expTooSmall, exp,
+		signatureAlgorithm, version, dnsNames,
+		ipAddresses, maxReputation,
+		issuerInMozillaDB, timestamp)
+		values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`
 	insertEntryStatement, err := tx.Prepare(insertEntry)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create prepared statement: %s\n", err)
@@ -120,19 +122,20 @@ func main() {
 	defer insertEntryStatement.Close()
 
 	insertIssuer := `
-	     insert into issuerReputation(issuer,
-				issuerInMozillaDB,
-				validPeriodTooLongNormalizedScore, validPeriodTooLongRawscore,
-				deprecatedVersionNormalizedScore, deprecatedVersionRawScore,
-				deprecatedSignatureAlgorithmNormalizedScore,
-				deprecatedSignatureAlgorithmRawScore,
-				missingCNinSANNormalizedScore, missingCNinSANRawScore,
-				keyTooShortNormalizedScore, keyTooShortRawScore,
-				expTooSmallNormalizedScore, expTooSmallRawScore,
-				normalizedScore, rawScore,
-				normalizedCount, rawCount, beginTime)
-	                 values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	     `
+	 insert into issuerReputation(
+		issuer,
+		issuerInMozillaDB,
+		validPeriodTooLongNormalizedScore, validPeriodTooLongRawscore,
+		deprecatedVersionNormalizedScore, deprecatedVersionRawScore,
+		deprecatedSignatureAlgorithmNormalizedScore,
+		deprecatedSignatureAlgorithmRawScore,
+		missingCNinSANNormalizedScore, missingCNinSANRawScore,
+		keyTooShortNormalizedScore, keyTooShortRawScore,
+		expTooSmallNormalizedScore, expTooSmallRawScore,
+		normalizedScore, rawScore,
+		normalizedCount, rawCount, beginTime)
+	values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`
 	insertIssuerStatement, err := tx.Prepare(insertIssuer)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create prepared statement: %s\n", err)
