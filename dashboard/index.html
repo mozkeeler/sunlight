@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Issuer Reputation Dashboard</title>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js"></script>
+  <script src="https://code.highcharts.com/stock/highstock.js"></script>
+</head>
+<body>
+  <div id="timeseries"></div>
+  <script type="application/javascript;version=1.7">
+
+    // Gets the JSON data from the DB dump
+    function getData() {
+      let data = new XMLHttpRequest();
+      data.open("GET", "issuerReputation.json", false);
+      data.send();
+      return JSON.parse(data.responseText);
+    }
+
+    // Turns the raw JSON data into something usable: a map of issuer names to objects with summary
+    // data about that issuer. The summary consists of:
+    //   issuer: the name of the CA the summary represents
+    //   scores: a list of scores consisting of:
+    //     month: the month this data came from, in milliseconds since the epoch
+    //     rawScore: the raw score
+    //     rawCount: the number of certificates issued
+    //   averageScore: the average of the scores in scores
+    //   totalCount: the total number of certificates issued
+    function makeIssuers(jsonData) {
+      let issuers = {};
+      for (let entry of jsonData) {
+        if (!issuers[entry.issuer]) {
+          issuers[entry.issuer] = {
+            issuer: entry.issuer,
+            scores: [],
+            averageScore: 0,
+            totalCount: 0
+          };
+        }
+        issuers[entry.issuer].scores.push({
+          month: entry.beginTime,
+          rawScore: entry.rawScore,
+          rawCount: entry.rawCount
+        });
+        issuers[entry.issuer].averageScore += (entry.rawScore * entry.rawCount);
+        issuers[entry.issuer].totalCount += entry.rawCount;
+      }
+      for (let issuer of Object.keys(issuers)) {
+        issuers[issuer].averageScore /= issuers[issuer].totalCount;
+      }
+      return issuers;
+    }
+
+    // Takes an issuer (see makeIssuers) and returns a list of [timestamp, score] values sorted
+    // by timestamp (earlier times first).
+    function issuerToChartData(issuer) {
+      let pairs = [];
+      for (let score of issuer.scores) {
+        pairs.push([score.month, score.rawScore]);
+      }
+      return pairs.sort(function(a, b) {
+        return a[0] - b[0];
+      });
+    }
+
+    // Takes a map of issuers, filters out those that have issued less than 100 certificates,
+    // sorts the rest by their average score (lowest first), and returns them in a list.
+    function filterAndSortIssuers(issuers) {
+      let values = [];
+      for (let issuer of Object.keys(issuers)) {
+        values.push(issuers[issuer]);
+      }
+      let filtered = values.filter(function(issuer) {
+        return issuer.totalCount > 100;
+      });
+      return filtered.sort(function(a, b) {
+        return a.averageScore - b.averageScore;
+      });
+    }
+
+    let data = getData();
+    let issuers = makeIssuers(data);
+    let filteredAndSorted = filterAndSortIssuers(issuers);
+    let worst10 = filteredAndSorted.slice(0, 10);
+    let worst10IssuerData = worst10.map(issuerToChartData);
+    let series = [];
+    for (let i = 0; i < worst10.length; i++) {
+      series.push({ name: worst10[i].issuer, data: worst10IssuerData[i] });
+    }
+    let tsChart = new Highcharts.StockChart({
+      chart: {
+        renderTo: "timeseries"
+      },
+      series: series,
+      yAxis: {
+        max: 1.0,
+        min: 0.0
+      }
+    });
+  </script>
+</body>
+</html>
