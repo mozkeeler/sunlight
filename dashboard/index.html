@@ -7,7 +7,10 @@
   <script src="https://code.highcharts.com/stock/highstock.js"></script>
 </head>
 <body>
+  <h1>Worst CAs that have issued at least 1000 certs</h1>
   <div id="timeseries"></div>
+  <h1>Reputation of top 10 CAs by volume</h1>
+  <div id="top10timeseries"></div>
   <script type="application/javascript;version=1.7">
 
     // Gets the JSON data from the DB dump
@@ -66,13 +69,21 @@
 
     // Takes a map of issuers, filters out those that have issued less than 100 certificates,
     // sorts the rest by their average score (lowest first), and returns them in a list.
+    let sorted = [];
     function filterAndSortIssuers(issuers) {
       let values = [];
       for (let issuer of Object.keys(issuers)) {
+        //console.log(issuer);
         values.push(issuers[issuer]);
+        //console.log("total count: " + issuers[issuer].totalCount);
       }
+      sorted = values.sort(function(a, b) {
+        return b.totalCount - a.totalCount;
+      });
+      sorted = sorted.slice(0, 10);
+      console.log(JSON.stringify(sorted));
       let filtered = values.filter(function(issuer) {
-        return issuer.totalCount > 100;
+        return issuer.totalCount > 1000;
       });
       return filtered.sort(function(a, b) {
         return a.averageScore - b.averageScore;
@@ -82,17 +93,31 @@
     let data = getData();
     let issuers = makeIssuers(data);
     let filteredAndSorted = filterAndSortIssuers(issuers);
+    let top10 = sorted;
     let worst10 = filteredAndSorted.slice(0, 10);
     let worst10IssuerData = worst10.map(issuerToChartData);
+    let top10IssuerData = top10.map(issuerToChartData);
     let series = [];
+    let top10series = [];
     for (let i = 0; i < worst10.length; i++) {
       series.push({ name: worst10[i].issuer, data: worst10IssuerData[i] });
+      top10series.push( { name: top10[i].issuer, data: top10IssuerData[i] });
     }
     let tsChart = new Highcharts.StockChart({
       chart: {
         renderTo: "timeseries"
       },
       series: series,
+      yAxis: {
+        max: 1.0,
+        min: 0.0
+      }
+    });
+    let top10tsChart = new Highcharts.StockChart({
+      chart: {
+        renderTo: "top10timeseries"
+      },
+      series: top10series,
       yAxis: {
         max: 1.0,
         min: 0.0
