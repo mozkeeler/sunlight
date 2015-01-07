@@ -72,7 +72,7 @@ func main() {
 		issuer text,
 		issuerInMozillaDB bool,
 		validPeriodTooLongNormalizedScore float,
-		validPeriodTooLongRawscore float,
+		validPeriodTooLongRawScore float,
 		deprecatedVersionNormalizedScore float,
 		deprecatedVersionRawScore float,
 		deprecatedSignatureAlgorithmNormalizedScore float,
@@ -125,7 +125,7 @@ func main() {
 	 insert into issuerReputation(
 		issuer,
 		issuerInMozillaDB,
-		validPeriodTooLongNormalizedScore, validPeriodTooLongRawscore,
+		validPeriodTooLongNormalizedScore, validPeriodTooLongRawScore,
 		deprecatedVersionNormalizedScore, deprecatedVersionRawScore,
 		deprecatedSignatureAlgorithmNormalizedScore,
 		deprecatedSignatureAlgorithmRawScore,
