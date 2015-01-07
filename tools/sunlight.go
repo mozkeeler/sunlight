@@ -72,7 +72,7 @@ func main() {
 		issuer text,
 		issuerInMozillaDB bool,
 		validPeriodTooLongNormalizedScore float,
-		validPeriodTooLongRawscore float,
+		validPeriodTooLongRawScore float,
 		deprecatedVersionNormalizedScore float,
 		deprecatedVersionRawScore float,
 		deprecatedSignatureAlgorithmNormalizedScore float,

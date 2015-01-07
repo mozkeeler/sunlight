@@ -5,7 +5,7 @@
   <title>Issuer Reputation Dashboard</title>
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js"></script>
   <script src="https://code.highcharts.com/stock/highstock.js"></script>
-  <script src=series.js></script>
+  <script src="series.js"></script>
 </head>
 <body>
   <h1>Worst CAs that have issued at least 1000 certs</h1>
@@ -42,9 +42,12 @@
     });
     let issuerCharts = {};
     for (i = 0; i < topIssuers.length; i++) {
+      let h1 = document.createElement("h1");
+      h1.textContent = topIssuers[i];
+      document.body.appendChild(h1);
       console.log("Creating div for " + topIssuers[i]);
       // Create the div
-      var div = document.createElement("div");
+      let div = document.createElement("div");
       div.id = topIssuers[i];
       document.body.appendChild(div);
       // Create the series

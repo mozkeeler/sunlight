@@ -5,6 +5,7 @@ var db = new sqlite3.Database('BRs.db');
 var scorePrefixes = [
   "validPeriodTooLong",
   "deprecatedVersion",
+  "deprecatedSignatureAlgorithm",
   "missingCNinSAN",
   "keyTooShort",
   "expTooSmall"
@@ -40,8 +41,7 @@ function dumpScores(issuer, type, timeseries) {
   scoreNames.forEach(function(score) {
     scores.push(timeseries[score]);
   });
-  console.log("scores[\"" + escapeName(issuer) + "\"] = " +
-              JSON.stringify(scores));
+  console.log("scores[\"" + issuer + "\"] = " + JSON.stringify(scores));
 }
 
 // Get all of the scores of a particular type (normalized, raw) for a given
