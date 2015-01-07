@@ -11,6 +11,7 @@ var scorePrefixes = [
 ];
 
 console.log("var timeseries = {};\n");
+console.log("var scores = {};\n");
 
 function escapeName(name) {
   return name.replace(/[ \.-]/g, "_");
@@ -39,7 +40,7 @@ function dumpScores(issuer, type, timeseries) {
   scoreNames.forEach(function(score) {
     scores.push(timeseries[score]);
   });
-  console.log("var " + escapeName(issuer) + "_" + type + " = " +
+  console.log("scores[\"" + escapeName(issuer) + "\"] = " +
               JSON.stringify(scores));
 }
 
@@ -57,7 +58,6 @@ function makeScoresForIssuer(issuer, type) {
     " FROM issuerReputation WHERE issuer=\"" + issuer + "\" ORDER BY t;";
   db.each(query,
     function(err, row) {
-      console.log(row);
       scoreNames.forEach(function(score) {
         timeseries[score].data.push([row.t, row[score]]);
       });

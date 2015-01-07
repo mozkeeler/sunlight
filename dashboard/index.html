@@ -40,6 +40,25 @@
         min: 0.0
       }
     });
+    let issuerCharts = {};
+    for (i = 0; i < topIssuers.length; i++) {
+      console.log("Creating div for " + topIssuers[i]);
+      // Create the div
+      var div = document.createElement("div");
+      div.id = topIssuers[i];
+      document.body.appendChild(div);
+      // Create the series
+      issuerCharts[topIssuers[i]] = new Highcharts.StockChart({
+        chart: {
+          renderTo: topIssuers[i]
+        },
+        series: scores[topIssuers[i]],
+        yAxis: {
+          max: 1.0,
+          min: 0.0
+        }
+      });
+    }
   </script>
 </body>
 </html>
