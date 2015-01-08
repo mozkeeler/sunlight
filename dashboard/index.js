@@ -58,56 +58,71 @@ for (i = 0; i < worstIssuers.length; i++) {
   top10series.push(timeseries[topIssuers[i]]);
 }
 
-let tsChart = new Highcharts.StockChart({
-  chart: {
-    renderTo: "timeseries"
-  },
-  legend: commonLegend,
-  tooltip: orderedTooltip,
-  series: worstSeries,
-  yAxis: {
-    max: 1.0,
-    min: 0.0
+let select = document.getElementById("charts");
+let worstCAsOption = document.createElement("option");
+worstCAsOption.textContent = "Worst CAs";
+select.appendChild(worstCAsOption);
+let top10CAsOption = document.createElement("option");
+top10CAsOption.textContent = "Top 10 CAs";
+select.appendChild(top10CAsOption);
+
+for (let issuer of topIssuers) {
+  let issuerOption = document.createElement("option");
+  issuerOption.textContent = issuer;
+  select.appendChild(issuerOption);
+}
+
+makeChart("Worst CAs");
+
+function chartSelected() {
+  let chart = select.options[select.selectedIndex].value;
+  makeChart(chart);
+}
+
+function makeChart(name) {
+  if (name == "Worst CAs") {
+    new Highcharts.StockChart({
+      chart: {
+        renderTo: "timeseries"
+      },
+      legend: commonLegend,
+      tooltip: orderedTooltip,
+      series: worstSeries,
+      yAxis: {
+        max: 1.0,
+        min: 0.0
+      }
+    });
+  } else if (name == "Top 10 CAs") {
+    let top10tsChart = new Highcharts.StockChart({
+      chart: {
+        renderTo: "timeseries"
+      },
+      legend: commonLegend,
+      tooltip: orderedTooltip,
+      series: top10series,
+      yAxis: {
+        max: 1.0,
+        min: 0.0
+      }
+    });
+  } else {
+    let series = scores[name].slice();
+    series.push(volumes[name]);
+    new Highcharts.StockChart({
+      chart: {
+        renderTo: "timeseries"
+      },
+      legend: commonLegend,
+      tooltip: violationsTooltip,
+      series: series,
+      yAxis: [{
+        max: 1.0,
+        min: 0.0
+      }, {
+        min: 0,
+        opposite: false
+      }]
+    });
   }
-});
-let top10tsChart = new Highcharts.StockChart({
-  chart: {
-    renderTo: "top10timeseries"
-  },
-  legend: commonLegend,
-  tooltip: orderedTooltip,
-  series: top10series,
-  yAxis: {
-    max: 1.0,
-    min: 0.0
-  }
-});
-let issuerCharts = {};
-for (i = 0; i < topIssuers.length; i++) {
-  let h1 = document.createElement("h1");
-  h1.textContent = topIssuers[i];
-  document.body.appendChild(h1);
-  console.log("Creating div for " + topIssuers[i]);
-  // Create the div
-  let div = document.createElement("div");
-  div.id = topIssuers[i];
-  document.body.appendChild(div);
-  // Create the series
-  let series = scores[topIssuers[i]];
-  series.push(volumes[topIssuers[i]]);
-  issuerCharts[topIssuers[i]] = new Highcharts.StockChart({
-    chart: {
-      renderTo: topIssuers[i]
-    },
-    legend: commonLegend,
-    tooltip: violationsTooltip,
-    series: series,
-    yAxis: [{
-      max: 1.0,
-      min: 0.0
-    }, {
-      min: 0,
-      opposite: false
-    }]
-  });
 }
