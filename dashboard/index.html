@@ -30,7 +30,9 @@
         let s = "<ol>";
         $.each(pointsSorted, function(i, point) {
           let y = point.y.toFixed(3);
-          s += "<li>" + point.series.name + ": " + y + "</li>";
+          if (point.series.visible) {
+            s += "<li>" + point.series.name + ": " + y + "</li>";
+          }
         });
         s += "</ol>";
         return s;
@@ -43,11 +45,21 @@
         let s = "<ul>";
         $.each(this.points, function(i, point) {
           let y = point.y.toFixed(3);
-          s += "<li>" + point.series.name + ": " + y + "</li>";
+          if (point.series.visible) {
+            s += "<li>" + point.series.name + ": " + y + "</li>";
+          }
         });
         s += "</ul>";
         return s;
       }
+    };
+
+    let commonLegend = {
+      enabled: true,
+      layout: "vertical",
+      align: "right",
+      verticalAlign: "middle",
+      borderWidth: 2
     };
 
     let worstSeries = [];
@@ -61,6 +73,7 @@
       chart: {
         renderTo: "timeseries"
       },
+      legend: commonLegend,
       tooltip: orderedTooltip,
       series: worstSeries
     });
@@ -68,6 +81,7 @@
       chart: {
         renderTo: "top10timeseries"
       },
+      legend: commonLegend,
       tooltip: orderedTooltip,
       series: top10series
     });
@@ -86,6 +100,7 @@
         chart: {
           renderTo: topIssuers[i]
         },
+        legend: commonLegend,
         tooltip: violationsTooltip,
         series: scores[topIssuers[i]]
       });
