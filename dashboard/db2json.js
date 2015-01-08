@@ -11,8 +11,9 @@ var scorePrefixes = [
   "expTooSmall"
 ];
 
-console.log("var timeseries = {};\n");
-console.log("var scores = {};\n");
+console.log("var timeseries = {};");
+console.log("var scores = {};");
+console.log("var volumes = {};\n");
 
 function escapeName(name) {
   return name.replace(/[ \.-]/g, "_");
@@ -44,6 +45,10 @@ function dumpScores(issuer, type, timeseries) {
   console.log("scores[\"" + issuer + "\"] = " + JSON.stringify(scores));
 }
 
+function dumpVolumes(issuer, type, volumeSeries) {
+  console.log("volumes[\"" + issuer + "\"] = " + JSON.stringify(volumeSeries));
+}
+
 // Get all of the scores of a particular type (normalized, raw) for a given
 // issuer and fill in an array of { name: score, data: [[ts1, d1]] }
 function makeScoresForIssuer(issuer, type) {
@@ -52,7 +57,7 @@ function makeScoresForIssuer(issuer, type) {
   var scoreNames = scorePrefixes.map(function(p) { return p + type; });
   scoreNames.map(function(score) {
     // Highstock data format
-    timeseries[score] = { name: score, data: [] };
+    timeseries[score] = { name: score, data: [], yAxis: 0 };
   });
   var query = "SELECT beginTime AS t, " + scoreNames.join() +
     " FROM issuerReputation WHERE issuer=\"" + issuer + "\" ORDER BY t;";
@@ -64,6 +69,21 @@ function makeScoresForIssuer(issuer, type) {
     },
     function() {
       dumpScores(issuer, type, timeseries);
+    });
+}
+
+function makeVolumesForIssuer(issuer, type) {
+  var volumeSeries = { name: "Issuance Volume", data: [], yAxis: 1,
+                       type: "area", zIndex: -1 };
+  var volumeQuery = "SELECT " + type + "Count AS v, beginTime AS t " +
+                    "FROM issuerReputation WHERE issuer=\"" + issuer + "\" " +
+                    "ORDER BY t;";
+  db.each(volumeQuery,
+    function(err, row) {
+      volumeSeries.data.push([row.t, row.v]);
+    },
+    function() {
+      dumpVolumes(issuer, type, volumeSeries);
     });
 }
 
@@ -84,6 +104,7 @@ db.each("SELECT issuer, sum(rawCount) AS n FROM issuerReputation " +
     completionDump("topIssuers", topIssuers);
     topIssuers.forEach(function(issuer) {
       makeScoresForIssuer(issuer, "RawScore");
+      makeVolumesForIssuer(issuer, "raw");
     });
   });
 
