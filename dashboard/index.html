@@ -13,6 +13,43 @@
   <h1>Reputation of top 10 CAs by volume</h1>
   <div id="top10timeseries"></div>
   <script type="application/javascript;version=1.7">
+
+    Highcharts.setOptions({
+      yAxis: {
+        max: 1.0,
+        min: 0.0
+      }
+    });
+
+    let orderedTooltip = {
+      useHTML: true,
+      formatter: function() {
+        let pointsSorted = this.points.slice().sort(function(pointA, pointB) {
+          return pointB.y - pointA.y;
+        });
+        let s = "<ol>";
+        $.each(pointsSorted, function(i, point) {
+          let y = point.y.toFixed(3);
+          s += "<li>" + point.series.name + ": " + y + "</li>";
+        });
+        s += "</ol>";
+        return s;
+      }
+    };
+
+    let violationsTooltip = {
+      useHTML: true,
+      formatter: function() {
+        let s = "<ul>";
+        $.each(this.points, function(i, point) {
+          let y = point.y.toFixed(3);
+          s += "<li>" + point.series.name + ": " + y + "</li>";
+        });
+        s += "</ul>";
+        return s;
+      }
+    };
+
     let worstSeries = [];
     let top10series = [];
     for (i = 0; i < worstIssuers.length; i++) {
@@ -24,21 +61,15 @@
       chart: {
         renderTo: "timeseries"
       },
-      series: worstSeries,
-      yAxis: {
-        max: 1.0,
-        min: 0.0
-      }
+      tooltip: orderedTooltip,
+      series: worstSeries
     });
     let top10tsChart = new Highcharts.StockChart({
       chart: {
         renderTo: "top10timeseries"
       },
-      series: top10series,
-      yAxis: {
-        max: 1.0,
-        min: 0.0
-      }
+      tooltip: orderedTooltip,
+      series: top10series
     });
     let issuerCharts = {};
     for (i = 0; i < topIssuers.length; i++) {
@@ -55,11 +86,8 @@
         chart: {
           renderTo: topIssuers[i]
         },
-        series: scores[topIssuers[i]],
-        yAxis: {
-          max: 1.0,
-          min: 0.0
-        }
+        tooltip: violationsTooltip,
+        series: scores[topIssuers[i]]
       });
     }
   </script>
