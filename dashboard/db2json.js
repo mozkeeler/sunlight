@@ -75,7 +75,7 @@ function completionDump(name, issuerArray) {
 var topIssuers = [];
 var worstIssuers = [];
 db.each("SELECT issuer, sum(rawCount) AS n FROM issuerReputation " +
-        "GROUP BY issuer ORDER BY n DESC LIMIT 10;",
+        "WHERE issuerInMozillaDB GROUP BY issuer ORDER BY n DESC LIMIT 10;",
   function(err, row) {
     topIssuers.push(row.issuer);
     makeTimeseriesForIssuer(row.issuer, "rawScore", printTimeseries);
@@ -89,8 +89,9 @@ db.each("SELECT issuer, sum(rawCount) AS n FROM issuerReputation " +
 
 // We can't restrict the query based on aliases (e.g., SUM(col)) so make a
 // subquery instead.
-db.each("SELECT issuer, n FROM (SELECT issuer, rawScore AS n, " +
-        "SUM(rawCount) AS s FROM issuerReputation GROUP BY issuer) " +
+db.each("SELECT issuer, n FROM " +
+           "(SELECT issuer, rawScore AS n, SUM(rawCount) AS s " +
+           " FROM issuerReputation WHERE issuerInMozillaDB GROUP BY issuer) " +
         "AS NEWTABLE WHERE s > 1000 AND issuer != \"\" ORDER BY n LIMIT 10;",
   function(err, row) {
     worstIssuers.push(row.issuer);
