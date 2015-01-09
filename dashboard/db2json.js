@@ -16,7 +16,7 @@ console.log("var scores = {};");
 console.log("var volumes = {};\n");
 
 function escapeName(name) {
-  return name.replace(/[ \.-]/g, "_");
+  return name.replace(/[ \.\-,]/g, "_");
 }
 
 function printTimeseries(timeseries) {
@@ -31,7 +31,7 @@ function makeTimeseriesForIssuer(issuer, column, cb) {
           "FROM issuerReputation WHERE issuer=\"" + issuer +
           "\" ORDER BY t",
     function(err, row) {
-      timeseries.data.push([row.t, row.d]);
+      timeseries.data.push([row.t, parseFloat(row.d.toFixed(3))]);
     },
     function() { cb(timeseries); });
 }
@@ -64,7 +64,7 @@ function makeScoresForIssuer(issuer, type) {
   db.each(query,
     function(err, row) {
       scoreNames.forEach(function(score) {
-        timeseries[score].data.push([row.t, row[score]]);
+        timeseries[score].data.push([row.t, parseFloat(row[score].toFixed(3))]);
       });
     },
     function() {
