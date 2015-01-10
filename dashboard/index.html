@@ -13,10 +13,21 @@
   <h1>Reputation of top 10 CAs by volume</h1>
   <div id="top10timeseries"></div>
   <script type="application/javascript;version=1.7">
+
+    let commonLegend = {
+      enabled: true,
+      layout: "vertical",
+      align: "right",
+      verticalAlign: "middle",
+      borderWidth: 2
+    };
+
     let worstSeries = [];
-    let top10series = [];
     for (i = 0; i < worstIssuers.length; i++) {
       worstSeries.push(timeseries[worstIssuers[i]]);
+    }
+    let top10series = [];
+    for (i = 0; i < topIssuers.length; i++) {
       top10series.push(timeseries[topIssuers[i]]);
     }
 
@@ -24,6 +35,7 @@
       chart: {
         renderTo: "timeseries"
       },
+      legend: commonLegend,
       series: worstSeries,
       yAxis: {
         max: 1.0,
@@ -34,6 +46,7 @@
       chart: {
         renderTo: "top10timeseries"
       },
+      legend: commonLegend,
       series: top10series,
       yAxis: {
         max: 1.0,
@@ -51,15 +64,21 @@
       div.id = topIssuers[i];
       document.body.appendChild(div);
       // Create the series
+      let series = scores[topIssuers[i]];
+      series.push(volumes[topIssuers[i]]);
       issuerCharts[topIssuers[i]] = new Highcharts.StockChart({
         chart: {
           renderTo: topIssuers[i]
         },
-        series: scores[topIssuers[i]],
-        yAxis: {
+        legend: commonLegend,
+        series: series,
+        yAxis: [{
           max: 1.0,
           min: 0.0
-        }
+        }, {
+          min: 0,
+          opposite: false
+        }]
       });
     }
   </script>
