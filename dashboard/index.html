@@ -3,12 +3,24 @@
 <head>
   <meta charset="utf-8">
   <title>Issuer Reputation Dashboard</title>
-  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js"></script>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+  <link rel="stylesheet" href="https://code.jquery.com/ui/1.11.2/themes/smoothness/jquery-ui.css">
+  <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.2/jquery-ui.min.js"></script>
   <script src="https://code.highcharts.com/stock/highstock.js"></script>
   <script src="series.js"></script>
 </head>
 <body>
-  <select id="charts" onchange="chartSelected();"></select>
+  <div>
+    Minimum Issuance: <input type="range" id="minimumIssuance" min="0" max="100"
+                       onchange="filterIssuersByIssuance();">
+    <input type="text" id="minimumIssuanceOutput" value="1000" readonly
+     style="width: 5em;"/>
+  </div>
+  <div id="searchfield">
+    Issuer: <input type="text" id="autocomplete" style="width:26em;">
+  </div>
+  <div id="outputbox">
+  </div>
   <div id="timeseries"></div>
   <script src="index.js" type="application/javascript;version=1.7"></script>
 </body>

@@ -1,6 +1,7 @@
 var sqliteToJSON = require('sqlite-to-json');
 var sqlite3 = require('sqlite3');
 var db = new sqlite3.Database('BRs.db');
+var fs = require('fs');
 
 var scorePrefixes = [
   "validPeriodTooLong",
@@ -11,12 +12,16 @@ var scorePrefixes = [
   "expTooSmall"
 ];
 
-console.log("var timeseries = {};");
-console.log("var scores = {};");
-console.log("var volumes = {};\n");
+try {
+  fs.mkdirSync("data");
+} catch (e) {
+  if (e.code != "EEXIST") {
+    throw e;
+  }
+}
 
 function escapeName(name) {
-  return name.replace(/[ \.\-,]/g, "_");
+  return name.replace(/[^A-Za-z0-9]/g, "_");
 }
 
 function printTimeseries(timeseries) {
@@ -25,33 +30,24 @@ function printTimeseries(timeseries) {
   console.log("timeseries[\"" + timeseries.name + "\"] = " + name + ";\n");
 }
 
+function formatFloat(val) {
+  return parseFloat(val.toFixed(3));
+}
+
 function makeTimeseriesForIssuer(issuer, column, cb) {
   var timeseries = { name: issuer, data: [] };
   db.each("SELECT beginTime as t, " + column + " AS d " +
           "FROM issuerReputation WHERE issuer=\"" + issuer +
           "\" ORDER BY t",
     function(err, row) {
-      timeseries.data.push([row.t, parseFloat(row.d.toFixed(3))]);
+      timeseries.data.push([row.t, formatFloat(row.d)]);
     },
     function() { cb(timeseries); });
 }
 
-function dumpScores(issuer, type, timeseries) {
-  var scores = [];
-  var scoreNames = scorePrefixes.map(function(p) { return p + type; });
-  scoreNames.forEach(function(score) {
-    scores.push(timeseries[score]);
-  });
-  console.log("scores[\"" + issuer + "\"] = " + JSON.stringify(scores));
-}
-
-function dumpVolumes(issuer, type, volumeSeries) {
-  console.log("volumes[\"" + issuer + "\"] = " + JSON.stringify(volumeSeries));
-}
-
 // Get all of the scores of a particular type (normalized, raw) for a given
 // issuer and fill in an array of { name: score, data: [[ts1, d1]] }
-function makeScoresForIssuer(issuer, type) {
+function makeScoresForIssuer(issuer, type, continuation) {
   var timeseries = {};
   // expTooSmall -> expTooSmallNormalizedScore
   var scoreNames = scorePrefixes.map(function(p) { return p + type; });
@@ -64,15 +60,15 @@ function makeScoresForIssuer(issuer, type) {
   db.each(query,
     function(err, row) {
       scoreNames.forEach(function(score) {
-        timeseries[score].data.push([row.t, parseFloat(row[score].toFixed(3))]);
+        timeseries[score].data.push([row.t, formatFloat(row[score])]);
       });
     },
     function() {
-      dumpScores(issuer, type, timeseries);
+      continuation(timeseries);
     });
 }
 
-function makeVolumesForIssuer(issuer, type) {
+function makeVolumesForIssuer(issuer, type, continuation) {
   var volumeSeries = { name: "Issuance Volume", data: [], yAxis: 1,
                        type: "area", zIndex: -1 };
   var volumeQuery = "SELECT " + type + "Count AS v, beginTime AS t " +
@@ -83,7 +79,7 @@ function makeVolumesForIssuer(issuer, type) {
       volumeSeries.data.push([row.t, row.v]);
     },
     function() {
-      dumpVolumes(issuer, type, volumeSeries);
+      continuation(volumeSeries);
     });
 }
 
@@ -91,9 +87,52 @@ function completionDump(name, issuerArray) {
   console.log("var " + name + " = " + JSON.stringify(issuerArray) + ";\n");
 }
 
-// An array of issuers
+function initIssuerData(path) {
+  if (fs.existsSync(path)) {
+    fs.unlinkSync(path);
+  }
+}
+
+function dumpScoresAndVolumeForIssuer(issuer, issuerFilename) {
+  // scoreSeries is a map of score type to Highstock data series that needs to
+  // be converted to a list of Highstock data series
+  makeScoresForIssuer(issuer, "RawScore", function(scoreSeries) {
+    makeVolumesForIssuer(issuer, "raw", function(volumeSeries) {
+      var allSeries = [];
+      Object.keys(scoreSeries).forEach(function(key) {
+        allSeries.push(scoreSeries[key]);
+      });
+      allSeries.push(volumeSeries);
+      fs.writeFileSync(issuerFilename, JSON.stringify(allSeries));
+    });
+  });
+}
+
+var allIssuers = [];
+db.each("SELECT issuer, sum(rawCount) AS totalIssuance FROM issuerReputation " +
+        "WHERE issuerInMozillaDB GROUP BY issuer;",
+  function(err, row) {
+    allIssuers.push(row);
+  },
+  function(err, numRows) {
+    var maxIssuance = 0;
+    console.log("var issuers = [");
+    allIssuers.forEach(function(issuer) {
+      if (issuer.totalIssuance > maxIssuance) {
+        maxIssuance = issuer.totalIssuance;
+      }
+      console.log(JSON.stringify(issuer) + ",");
+      var issuerFilename = "data/" + escapeName(issuer.issuer) + ".json";
+      initIssuerData(issuerFilename);
+      dumpScoresAndVolumeForIssuer(issuer.issuer, issuerFilename);
+    });
+    console.log("];");
+    console.log("var maxIssuance = " + maxIssuance + ";");
+  }
+);
+
+console.log("var timeseries = {};");
 var topIssuers = [];
-var worstIssuers = [];
 db.each("SELECT issuer, sum(rawCount) AS n FROM issuerReputation " +
         "WHERE issuerInMozillaDB GROUP BY issuer ORDER BY n DESC LIMIT 10;",
   function(err, row) {
@@ -102,12 +141,9 @@ db.each("SELECT issuer, sum(rawCount) AS n FROM issuerReputation " +
   },
   function() {
     completionDump("topIssuers", topIssuers);
-    topIssuers.forEach(function(issuer) {
-      makeScoresForIssuer(issuer, "RawScore");
-      makeVolumesForIssuer(issuer, "raw");
-    });
   });
 
+var worstIssuers = [];
 // We can't restrict the query based on aliases (e.g., SUM(col)) so make a
 // subquery instead.
 db.each("SELECT issuer, n FROM " +
