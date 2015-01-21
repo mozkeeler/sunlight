@@ -1,11 +1,3 @@
-let commonLegend = {
-  enabled: true,
-  layout: "vertical",
-  align: "right",
-  verticalAlign: "middle",
-  borderWidth: 2
-};
-
 let worstSeries = [];
 for (i = 0; i < worstIssuers.length; i++) {
   worstSeries.push(timeseries[worstIssuers[i]]);
@@ -22,8 +14,8 @@ function filterIssuersByIssuance() {
   filteredIssuers.push("Worst CAs");
   filteredIssuers.push("Top 10 CAs");
 
-  let sliderPercentage = document.getElementById("minimumIssuance").value;
-  let minimumIssuance = Math.ceil(Math.pow(maxIssuance, sliderPercentage / 100));
+  let sliderValue = document.getElementById("minimumIssuance").value;
+  let minimumIssuance = Math.ceil(Math.pow(maxIssuance, sliderValue / 100));
   let output = document.getElementById("minimumIssuanceOutput");
   output.value = minimumIssuance;
 
@@ -34,8 +26,6 @@ function filterIssuersByIssuance() {
   }
 }
 
-filterIssuersByIssuance();
-
 $('#autocomplete').autocomplete({
   source: filteredIssuers,
   minLength: 0,
@@ -43,8 +33,6 @@ $('#autocomplete').autocomplete({
     makeChart(suggestion.item.value);
   }
 });
-
-makeChart(filteredIssuers[0]);
 
 function escapeName(name) {
   return name.replace(/[^A-Za-z0-9]/g, "_");
@@ -55,7 +43,7 @@ function getChartData(name, continuation) {
   let req = new XMLHttpRequest();
   req.open("GET", "data/" + escapedName + ".json", true);
   req.onreadystatechange = function() {
-    if (req.readyState == 4 && req.status == 200) {
+    if (req.readyState == XMLHttpRequest.DONE && req.status == 200) {
       let data = JSON.parse(req.responseText);
       continuation(data);
     }
@@ -63,49 +51,48 @@ function getChartData(name, continuation) {
   req.send();
 }
 
+let commonLegend = {
+  enabled: true,
+  layout: "vertical",
+  align: "right",
+  verticalAlign: "middle",
+  borderWidth: 2
+};
+
 function makeChart(name) {
+  let commonYAxis = [{ max: 1.0, min: 0.0 }, { min: 0, opposite: false }];
   if (name == "Worst CAs") {
     new Highcharts.StockChart({
-      chart: {
-        renderTo: "timeseries"
-      },
       legend: commonLegend,
       series: worstSeries,
-      yAxis: {
-        max: 1.0,
-        min: 0.0
-      }
+      yAxis: commonYAxis
     });
     document.getElementById("autocomplete").value = name;
   } else if (name == "Top 10 CAs") {
     let top10tsChart = new Highcharts.StockChart({
-      chart: {
-        renderTo: "timeseries"
-      },
       legend: commonLegend,
       series: top10series,
-      yAxis: {
-        max: 1.0,
-        min: 0.0
-      }
+      yAxis: commonYAxis
     });
     document.getElementById("autocomplete").value = name;
   } else {
     getChartData(name, function(series) {
       new Highcharts.StockChart({
-        chart: {
-          renderTo: "timeseries"
-        },
         legend: commonLegend,
         series: series,
-        yAxis: [{
-          max: 1.0,
-          min: 0.0
-        }, {
-          min: 0,
-          opposite: false
-        }]
+        yAxis: commonYAxis
       });
     });
   }
 }
+
+// Strangely, it looks like passing in values for legend and yAxis don't work,
+// so they have to be specified with each chart created.
+Highcharts.setOptions({
+  chart: {
+    renderTo: "timeseries"
+  }
+});
+
+filterIssuersByIssuance();
+makeChart(filteredIssuers[0]);

@@ -24,6 +24,11 @@ function escapeName(name) {
   return name.replace(/[^A-Za-z0-9]/g, "_");
 }
 
+// Dumps to the console a single timeseries of the following format:
+//   name: the issuer corresponding to the timeseries
+//   data: a list of [time in milliseconds, score] list pairs
+// Also dumps a line that, when evaluated as javascript, inserts an entry in
+// the timeseries map that associates the issuer with the data.
 function printTimeseries(timeseries) {
   var name = escapeName(timeseries.name) + "_Timeseries";
   console.log("var " + name + " = " + JSON.stringify(timeseries) + ";\n");
@@ -93,6 +98,13 @@ function initIssuerData(path) {
   }
 }
 
+// Given an issuer name and a filename to output to, dumps the JSON
+// representation of a list of timeseries objects with the following
+// properties:
+//   name: a string representing the series (e.g. 'validPeriodTooLongRawScore')
+//   data: a list of [time in milliseconds, data point value] list pairs
+//   yAxis: which axis to render to (0 or 1 - differentiates scores from
+//          issuance volume)
 function dumpScoresAndVolumeForIssuer(issuer, issuerFilename) {
   // scoreSeries is a map of score type to Highstock data series that needs to
   // be converted to a list of Highstock data series
@@ -141,7 +153,8 @@ db.each("SELECT issuer, sum(rawCount) AS n FROM issuerReputation " +
   },
   function() {
     completionDump("topIssuers", topIssuers);
-  });
+  }
+);
 
 var worstIssuers = [];
 // We can't restrict the query based on aliases (e.g., SUM(col)) so make a
@@ -154,4 +167,7 @@ db.each("SELECT issuer, n FROM " +
     worstIssuers.push(row.issuer);
     makeTimeseriesForIssuer(row.issuer, "rawScore", printTimeseries);
   },
-  function() { completionDump("worstIssuers", worstIssuers); });
+  function() {
+    completionDump("worstIssuers", worstIssuers);
+  }
+);
