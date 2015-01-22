@@ -3,84 +3,25 @@
 <head>
   <meta charset="utf-8">
   <title>Issuer Reputation Dashboard</title>
-  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js"></script>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+  <link rel="stylesheet" href="https://code.jquery.com/ui/1.11.2/themes/smoothness/jquery-ui.css">
+  <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.2/jquery-ui.min.js"></script>
   <script src="https://code.highcharts.com/stock/highstock.js"></script>
   <script src="series.js"></script>
 </head>
 <body>
-  <h1>Worst CAs that have issued at least 1000 certs</h1>
+  <div>
+    Minimum Issuance: <input type="range" id="minimumIssuance" min="0" max="100"
+                       onchange="filterIssuersByIssuance();">
+    <input type="text" id="minimumIssuanceOutput" value="1000" readonly
+     style="width: 5em;"/>
+  </div>
+  <div id="searchfield">
+    Issuer: <input type="text" id="autocomplete" style="width:26em;">
+  </div>
+  <div id="outputbox">
+  </div>
   <div id="timeseries"></div>
-  <h1>Reputation of top 10 CAs by volume</h1>
-  <div id="top10timeseries"></div>
-  <script type="application/javascript;version=1.7">
-
-    let commonLegend = {
-      enabled: true,
-      layout: "vertical",
-      align: "right",
-      verticalAlign: "middle",
-      borderWidth: 2
-    };
-
-    let worstSeries = [];
-    for (i = 0; i < worstIssuers.length; i++) {
-      worstSeries.push(timeseries[worstIssuers[i]]);
-    }
-    let top10series = [];
-    for (i = 0; i < topIssuers.length; i++) {
-      top10series.push(timeseries[topIssuers[i]]);
-    }
-
-    let tsChart = new Highcharts.StockChart({
-      chart: {
-        renderTo: "timeseries"
-      },
-      legend: commonLegend,
-      series: worstSeries,
-      yAxis: {
-        max: 1.0,
-        min: 0.0
-      }
-    });
-    let top10tsChart = new Highcharts.StockChart({
-      chart: {
-        renderTo: "top10timeseries"
-      },
-      legend: commonLegend,
-      series: top10series,
-      yAxis: {
-        max: 1.0,
-        min: 0.0
-      }
-    });
-    let issuerCharts = {};
-    for (i = 0; i < topIssuers.length; i++) {
-      let h1 = document.createElement("h1");
-      h1.textContent = topIssuers[i];
-      document.body.appendChild(h1);
-      console.log("Creating div for " + topIssuers[i]);
-      // Create the div
-      let div = document.createElement("div");
-      div.id = topIssuers[i];
-      document.body.appendChild(div);
-      // Create the series
-      let series = scores[topIssuers[i]];
-      series.push(volumes[topIssuers[i]]);
-      issuerCharts[topIssuers[i]] = new Highcharts.StockChart({
-        chart: {
-          renderTo: topIssuers[i]
-        },
-        legend: commonLegend,
-        series: series,
-        yAxis: [{
-          max: 1.0,
-          min: 0.0
-        }, {
-          min: 0,
-          opposite: false
-        }]
-      });
-    }
-  </script>
+  <script src="index.js" type="application/javascript;version=1.7"></script>
 </body>
 </html>
