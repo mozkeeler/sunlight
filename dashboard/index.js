@@ -60,6 +60,7 @@ let commonLegend = {
 };
 
 function makeChart(name) {
+  clearExamples();
   let commonYAxis = [{ max: 1.0, min: 0.0 }, { min: 0, opposite: false }];
   if (name == "Worst CAs") {
     new Highcharts.StockChart({
@@ -76,13 +77,47 @@ function makeChart(name) {
     });
     document.getElementById("autocomplete").value = name;
   } else {
-    getChartData(name, function(series) {
+    getChartData(name, function(seriesAndExamples) {
       new Highcharts.StockChart({
         legend: commonLegend,
-        series: series,
+        series: seriesAndExamples.series,
         yAxis: commonYAxis
       });
+      makeExamples(seriesAndExamples.examples);
     });
+  }
+}
+
+function clearChildren(id) {
+  let element = document.getElementById(id);
+  while (element.children.length > 0) {
+    element.children[0].remove();
+  }
+}
+
+function clearExamples() {
+  clearChildren("examplesHeader");
+  clearChildren("examplesBody");
+}
+
+function makeExamples(examples) {
+  let examplesHeader = document.getElementById("examplesHeader");
+  let examplesBody = document.getElementById("examplesBody");
+  for (let key of Object.keys(examples)) {
+    if (!examples[key] || key == "issuer") {
+      continue;
+    }
+    let header = document.createElement("th");
+    header.textContent = key;
+    examplesHeader.appendChild(header);
+    let td = document.createElement("td");
+    let cert = document.createElement("textarea");
+    cert.setAttribute("rows", 30);
+    cert.setAttribute("cols", 66);
+    cert.setAttribute("readonly", "");
+    cert.textContent = examples[key];
+    td.appendChild(cert);
+    examplesBody.appendChild(td);
   }
 }
 
