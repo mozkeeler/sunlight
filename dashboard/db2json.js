@@ -98,6 +98,16 @@ function initIssuerData(path) {
   }
 }
 
+function makeExamplesForIssuer(issuer, callback) {
+  var query = "SELECT * FROM examples where issuer=\"" + issuer + "\"";
+  var examples;
+  db.each(query, function(err, row) {
+    examples = row; // this should only happen once
+  }, function() {
+    callback(examples);
+  });
+}
+
 // Given an issuer name and a filename to output to, dumps the JSON
 // representation of a list of timeseries objects with the following
 // properties:
@@ -105,7 +115,7 @@ function initIssuerData(path) {
 //   data: a list of [time in milliseconds, data point value] list pairs
 //   yAxis: which axis to render to (0 or 1 - differentiates scores from
 //          issuance volume)
-function dumpScoresAndVolumeForIssuer(issuer, issuerFilename) {
+function dumpScoresVolumeAndExamplesForIssuer(issuer, issuerFilename) {
   // scoreSeries is a map of score type to Highstock data series that needs to
   // be converted to a list of Highstock data series
   makeScoresForIssuer(issuer, "RawScore", function(scoreSeries) {
@@ -115,7 +125,10 @@ function dumpScoresAndVolumeForIssuer(issuer, issuerFilename) {
         allSeries.push(scoreSeries[key]);
       });
       allSeries.push(volumeSeries);
-      fs.writeFileSync(issuerFilename, JSON.stringify(allSeries));
+      makeExamplesForIssuer(issuer, function(examples) {
+        var data = { series: allSeries, examples: examples };
+        fs.writeFileSync(issuerFilename, JSON.stringify(data));
+      });
     });
   });
 }
@@ -136,7 +149,7 @@ db.each("SELECT issuer, sum(rawCount) AS totalIssuance FROM issuerReputation " +
       console.log(JSON.stringify(issuer) + ",");
       var issuerFilename = "data/" + escapeName(issuer.issuer) + ".json";
       initIssuerData(issuerFilename);
-      dumpScoresAndVolumeForIssuer(issuer.issuer, issuerFilename);
+      dumpScoresVolumeAndExamplesForIssuer(issuer.issuer, issuerFilename);
     });
     console.log("];");
     console.log("var maxIssuance = " + maxIssuance + ";");
