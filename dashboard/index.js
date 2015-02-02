@@ -101,6 +101,11 @@ function clearExamples() {
 }
 
 function makeExamples(examples) {
+  // e.g. 'COMODO ECC Domain Validation Secure Server CA 2' has a perfect
+  // score, so there are no examples of bad certificates issued by it.
+  if (!examples) {
+    return;
+  }
   let examplesHeader = document.getElementById("examplesHeader");
   let examplesBody = document.getElementById("examplesBody");
   for (let key of Object.keys(examples)) {
@@ -111,14 +116,54 @@ function makeExamples(examples) {
     header.textContent = key;
     examplesHeader.appendChild(header);
     let td = document.createElement("td");
-    let cert = document.createElement("textarea");
-    cert.setAttribute("rows", 30);
-    cert.setAttribute("cols", 66);
-    cert.setAttribute("readonly", "");
-    cert.textContent = examples[key];
-    td.appendChild(cert);
+    let cert = new X509();
+    cert.readCertPEM(examples[key]);
+    let signatureAlgorithm = KJUR.asn1.x509.OID.oid2name(
+      ASN1HEX.hextooidstr(cert.getSignatureAlgorithmOID().getValueHex()));
+    let items = [ ["version", cert.getVersion()],
+                  ["signature algorithm", signatureAlgorithm],
+                  ["valid from", certTimeToJSTime(cert.getNotBefore())],
+                  ["valid until", certTimeToJSTime(cert.getNotAfter())] ];
+    let table = createTable(items);
+    td.appendChild(table);
+
+    /*
+    let certPEMArea = document.createElement("textarea");
+    certPEMArea.setAttribute("rows", 30);
+    certPEMArea.setAttribute("cols", 66);
+    certPEMArea.setAttribute("readonly", "");
+    certPEMArea.textContent = examples[key];
+    td.appendChild(certPEMArea);
+    */
+
     examplesBody.appendChild(td);
   }
+}
+
+// XXX this is the DER formatting of time - look it up
+function certTimeToJSTime(certTime) {
+  let year = "20" + certTime.substring(0, 2); // yeah, fix this.
+  let month = certTime.substring(2, 4);
+  let day = certTime.substring(4, 6);
+  let hour = certTime.substring(6, 8);
+  let minute = certTime.substring(8, 10);
+  let second = certTime.substring(10, 12);
+  return new Date(year, month, day, hour, minute, second);
+}
+
+function createTable(items) {
+  let table = document.createElement("table");
+  for (let pair of items) {
+    let tr = document.createElement("tr");
+    let td1 = document.createElement("td");
+    td1.textContent = pair[0];
+    let td2 = document.createElement("td");
+    td2.textContent = pair[1];
+    tr.appendChild(td1);
+    tr.appendChild(td2);
+    table.appendChild(tr);
+  }
+  return table;
 }
 
 // Strangely, it looks like passing in values for legend and yAxis don't work,
