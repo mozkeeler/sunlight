@@ -104,11 +104,17 @@ func main() {
 	create table examples(
 		issuer text,
 		validPeriodTooLongExample text,
+		validPeriodTooLongLastSeen bigint,
 		deprecatedVersionExample text,
+		deprecatedVersionLastSeen bigint,
 		deprecatedSignatureAlgorithmExample text,
+		deprecatedSignatureAlgorithmLastSeen bigint,
 		missingCNinSANExample text,
+		missingCNinSANLastSeen bigint,
 		keyTooShortExample text,
-		expTooSmallExample text);
+		keyTooShortLastSeen bigint,
+		expTooSmallExample text,
+		expTooSmallLastSeen bigint);
 	`
 
 	_, err = db.Exec(createTables)
@@ -168,12 +174,18 @@ func main() {
 		insert into examples(
 			issuer,
 			validPeriodTooLongExample,
+			validPeriodTooLongLastSeen,
 			deprecatedVersionExample,
+			deprecatedVersionLastSeen,
 			deprecatedSignatureAlgorithmExample,
+			deprecatedSignatureAlgorithmLastSeen,
 			missingCNinSANExample,
+			missingCNinSANLastSeen,
 			keyTooShortExample,
-			expTooSmallExample)
-		values(?, ?, ?, ?, ?, ?, ?)
+			keyTooShortLastSeen,
+			expTooSmallExample,
+			expTooSmallLastSeen)
+		values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	insertExampleStatement, err := tx.Prepare(insertExample)
 	if err != nil {
@@ -211,6 +223,7 @@ func main() {
 
 	exampleMapLock := new(sync.Mutex)
 	exampleMap := make(map[string]map[string]*x509.Certificate)
+	exampleMapLastSeen := make(map[string]map[string]uint64)
 
 	entriesFile.Map(func(ent *certificatetransparency.EntryAndPosition, err error) {
 		if err != nil {
@@ -310,10 +323,12 @@ func main() {
 			exampleMapLock.Lock()
 			if exampleMap[cert.Issuer.CommonName] == nil {
 				exampleMap[cert.Issuer.CommonName] = make(map[string]*x509.Certificate)
+				exampleMapLastSeen[cert.Issuer.CommonName] = make(map[string]uint64)
 			}
 			for violation, isViolation := range summary.Violations {
 				if isViolation {
 					exampleMap[cert.Issuer.CommonName][violation] = cert
+					exampleMapLastSeen[cert.Issuer.CommonName][violation] = ent.Entry.Timestamp
 				}
 			}
 			exampleMapLock.Unlock()
@@ -351,11 +366,17 @@ func main() {
 	for issuer, examples := range exampleMap {
 		_, err = insertExampleStatement.Exec(issuer,
 			certToString(examples[VALID_PERIOD_TOO_LONG]),
+			exampleMapLastSeen[issuer][VALID_PERIOD_TOO_LONG],
 			certToString(examples[DEPRECATED_VERSION]),
+			exampleMapLastSeen[issuer][DEPRECATED_VERSION],
 			certToString(examples[DEPRECATED_SIGNATURE_ALGORITHM]),
+			exampleMapLastSeen[issuer][DEPRECATED_SIGNATURE_ALGORITHM],
 			certToString(examples[MISSING_CN_IN_SAN]),
+			exampleMapLastSeen[issuer][MISSING_CN_IN_SAN],
 			certToString(examples[KEY_TOO_SHORT]),
-			certToString(examples[EXP_TOO_SMALL]))
+			exampleMapLastSeen[issuer][KEY_TOO_SHORT],
+			certToString(examples[EXP_TOO_SMALL]),
+			exampleMapLastSeen[issuer][EXP_TOO_SMALL])
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to insert entry: %s\n", err)
 			os.Exit(1)
