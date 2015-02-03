@@ -100,22 +100,33 @@ function clearExamples() {
   clearChildren("examplesBody");
 }
 
+let months = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov",
+  "Dec"
+];
+
 function makeExamples(examples) {
   let examplesHeader = document.getElementById("examplesHeader");
   let examplesBody = document.getElementById("examplesBody");
+  let exampleTypes = [];
   for (let key of Object.keys(examples)) {
-    if (!examples[key] || key == "issuer") {
-      continue;
+    if (key.endsWith("Example") && examples[key]) {
+      exampleTypes.push(key.substring(0, key.indexOf("Example")));
     }
+  }
+  for (let example of exampleTypes) {
     let header = document.createElement("th");
-    header.textContent = key;
+    let lastSeen = new Date(examples[example + "LastSeen"]);
+    header.textContent = example + " (last seen " + lastSeen.getDate() + " " +
+                         months[lastSeen.getMonth()] + " " +
+                         lastSeen.getFullYear() + ")";
     examplesHeader.appendChild(header);
     let td = document.createElement("td");
     let cert = document.createElement("textarea");
     cert.setAttribute("rows", 30);
     cert.setAttribute("cols", 66);
     cert.setAttribute("readonly", "");
-    cert.textContent = examples[key];
+    cert.textContent = examples[example + "Example"];
     td.appendChild(cert);
     examplesBody.appendChild(td);
   }
