@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/x509"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"github.com/monicachew/certificatetransparency"
 	. "github.com/mozkeeler/sunlight"
 	"os"
+	"regexp"
 	"runtime"
 	"sync"
 	"time"
@@ -33,6 +35,16 @@ func init() {
 	flag.Uint64Var(&maxEntries, "max_entries", 0, "Max entries (0 means all)")
 	flag.StringVar(&rootCAFile, "rootCA_file", "rootCAList.txt", "list of root CA CNs")
 	runtime.GOMAXPROCS(runtime.NumCPU())
+}
+
+func certToString(cert *x509.Certificate) string {
+	if cert == nil {
+		return ""
+	}
+	b64 := base64.StdEncoding.EncodeToString(cert.Raw)
+	re := regexp.MustCompile(`(\S{64})`)
+	b64WithNewlines := re.ReplaceAllString(b64, "$1\r\n")
+	return "-----BEGIN CERTIFICATE-----\r\n" + b64WithNewlines + "\r\n-----END CERTIFICATE-----\r\n"
 }
 
 func main() {
@@ -87,7 +99,22 @@ func main() {
 		rawScore float,
 		normalizedCount integer,
 		rawCount integer,
-		beginTime bigint)
+		beginTime bigint);
+	drop table if exists examples;
+	create table examples(
+		issuer text,
+		validPeriodTooLongExample text,
+		validPeriodTooLongLastSeen bigint,
+		deprecatedVersionExample text,
+		deprecatedVersionLastSeen bigint,
+		deprecatedSignatureAlgorithmExample text,
+		deprecatedSignatureAlgorithmLastSeen bigint,
+		missingCNinSANExample text,
+		missingCNinSANLastSeen bigint,
+		keyTooShortExample text,
+		keyTooShortLastSeen bigint,
+		expTooSmallExample text,
+		expTooSmallLastSeen bigint);
 	`
 
 	_, err = db.Exec(createTables)
@@ -143,6 +170,30 @@ func main() {
 	}
 	defer insertIssuerStatement.Close()
 
+	insertExample := `
+		insert into examples(
+			issuer,
+			validPeriodTooLongExample,
+			validPeriodTooLongLastSeen,
+			deprecatedVersionExample,
+			deprecatedVersionLastSeen,
+			deprecatedSignatureAlgorithmExample,
+			deprecatedSignatureAlgorithmLastSeen,
+			missingCNinSANExample,
+			missingCNinSANLastSeen,
+			keyTooShortExample,
+			keyTooShortLastSeen,
+			expTooSmallExample,
+			expTooSmallLastSeen)
+		values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`
+	insertExampleStatement, err := tx.Prepare(insertExample)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create prepared statement: %s\n", err)
+		os.Exit(1)
+	}
+	defer insertExampleStatement.Close()
+
 	fmt.Fprintf(os.Stderr, "Starting %s\n", time.Now())
 	in, err := os.Open(ctLog)
 	if err != nil {
@@ -169,6 +220,11 @@ func main() {
 
 	issuersLock := new(sync.Mutex)
 	issuers := make(map[string]*IssuerReputation)
+
+	exampleMapLock := new(sync.Mutex)
+	exampleMap := make(map[string]map[string]*x509.Certificate)
+	exampleMapLastSeen := make(map[string]map[string]uint64)
+
 	entriesFile.Map(func(ent *certificatetransparency.EntryAndPosition, err error) {
 		if err != nil {
 			return
@@ -263,6 +319,19 @@ func main() {
 				fmt.Fprintf(os.Stderr, "Couldn't write json: %s\n", err)
 				os.Exit(1)
 			}
+
+			exampleMapLock.Lock()
+			if exampleMap[cert.Issuer.CommonName] == nil {
+				exampleMap[cert.Issuer.CommonName] = make(map[string]*x509.Certificate)
+				exampleMapLastSeen[cert.Issuer.CommonName] = make(map[string]uint64)
+			}
+			for violation, isViolation := range summary.Violations {
+				if isViolation {
+					exampleMap[cert.Issuer.CommonName][violation] = cert
+					exampleMapLastSeen[cert.Issuer.CommonName][violation] = ent.Entry.Timestamp
+				}
+			}
+			exampleMapLock.Unlock()
 		}
 	}, maxEntries)
 	fmt.Fprintf(out, "]}\n")
@@ -288,6 +357,26 @@ func main() {
 			issuer.NormalizedCount,
 			issuer.RawCount,
 			issuer.BeginTime)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to insert entry: %s\n", err)
+			os.Exit(1)
+		}
+	}
+
+	for issuer, examples := range exampleMap {
+		_, err = insertExampleStatement.Exec(issuer,
+			certToString(examples[VALID_PERIOD_TOO_LONG]),
+			exampleMapLastSeen[issuer][VALID_PERIOD_TOO_LONG],
+			certToString(examples[DEPRECATED_VERSION]),
+			exampleMapLastSeen[issuer][DEPRECATED_VERSION],
+			certToString(examples[DEPRECATED_SIGNATURE_ALGORITHM]),
+			exampleMapLastSeen[issuer][DEPRECATED_SIGNATURE_ALGORITHM],
+			certToString(examples[MISSING_CN_IN_SAN]),
+			exampleMapLastSeen[issuer][MISSING_CN_IN_SAN],
+			certToString(examples[KEY_TOO_SHORT]),
+			exampleMapLastSeen[issuer][KEY_TOO_SHORT],
+			certToString(examples[EXP_TOO_SMALL]),
+			exampleMapLastSeen[issuer][EXP_TOO_SMALL])
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to insert entry: %s\n", err)
 			os.Exit(1)
