@@ -100,6 +100,11 @@ function clearExamples() {
   clearChildren("examplesBody");
 }
 
+let months = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov",
+  "Dec"
+];
+
 function makeExamples(examples) {
   // e.g. 'COMODO ECC Domain Validation Secure Server CA 2' has a perfect
   // score, so there are no examples of bad certificates issued by it.
@@ -108,16 +113,22 @@ function makeExamples(examples) {
   }
   let examplesHeader = document.getElementById("examplesHeader");
   let examplesBody = document.getElementById("examplesBody");
+  let exampleTypes = [];
   for (let key of Object.keys(examples)) {
-    if (!examples[key] || key == "issuer") {
-      continue;
+    if (key.endsWith("Example") && examples[key]) {
+      exampleTypes.push(key.substring(0, key.indexOf("Example")));
     }
+  }
+  for (let example of exampleTypes) {
     let header = document.createElement("th");
-    header.textContent = key;
+    let lastSeen = new Date(examples[example + "LastSeen"]);
+    header.textContent = example + " (last seen " + lastSeen.getDate() + " " +
+                         months[lastSeen.getMonth()] + " " +
+                         lastSeen.getFullYear() + ")";
     examplesHeader.appendChild(header);
     let td = document.createElement("td");
     let cert = new X509();
-    cert.readCertPEM(examples[key]);
+    cert.readCertPEM(examples[example + "Example"]);
     let signatureAlgorithm = KJUR.asn1.x509.OID.oid2name(
       ASN1HEX.hextooidstr(cert.getSignatureAlgorithmOID().getValueHex()));
     let items = [ ["version", cert.getVersion()],
@@ -132,7 +143,7 @@ function makeExamples(examples) {
     certPEMArea.setAttribute("rows", 30);
     certPEMArea.setAttribute("cols", 66);
     certPEMArea.setAttribute("readonly", "");
-    certPEMArea.textContent = examples[key];
+    certPEMArea.textContent = examples[example + "Example"];
     td.appendChild(certPEMArea);
     */
 
