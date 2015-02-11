@@ -127,26 +127,14 @@ function makeExamples(examples) {
                          lastSeen.getFullYear() + ")";
     examplesHeader.appendChild(header);
     let td = document.createElement("td");
-    let cert = new X509();
-    cert.readCertPEM(examples[example + "Example"]);
-    let signatureAlgorithm = KJUR.asn1.x509.OID.oid2name(
-      ASN1HEX.hextooidstr(cert.getSignatureAlgorithmOID().getValueHex()));
-    let items = [ ["version", cert.getVersion()],
-                  ["signature algorithm", signatureAlgorithm],
-                  ["valid from", certTimeToJSTime(cert.getNotBefore())],
-                  ["valid until", certTimeToJSTime(cert.getNotAfter())] ];
-    let table = createTable(items);
-    td.appendChild(table);
-
-    /*
-    let certPEMArea = document.createElement("textarea");
-    certPEMArea.setAttribute("rows", 30);
-    certPEMArea.setAttribute("cols", 66);
-    certPEMArea.setAttribute("readonly", "");
-    certPEMArea.textContent = examples[example + "Example"];
-    td.appendChild(certPEMArea);
-    */
-
+    let pem = examples[example + "Example"]
+                .replace(/[\r\n]/g, "")
+                .replace(/-----(BEGIN|END) CERTIFICATE-----/g, "");
+    let frame = document.createElement("iframe");
+    frame.width = "600px";
+    frame.height = "600px";
+    frame.src = "certsplainer/?" + pem;
+    td.appendChild(frame);
     examplesBody.appendChild(td);
   }
 }
