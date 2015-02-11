@@ -139,32 +139,6 @@ function makeExamples(examples) {
   }
 }
 
-// XXX this is the DER formatting of time - look it up
-function certTimeToJSTime(certTime) {
-  let year = "20" + certTime.substring(0, 2); // yeah, fix this.
-  let month = certTime.substring(2, 4);
-  let day = certTime.substring(4, 6);
-  let hour = certTime.substring(6, 8);
-  let minute = certTime.substring(8, 10);
-  let second = certTime.substring(10, 12);
-  return new Date(year, month, day, hour, minute, second);
-}
-
-function createTable(items) {
-  let table = document.createElement("table");
-  for (let pair of items) {
-    let tr = document.createElement("tr");
-    let td1 = document.createElement("td");
-    td1.textContent = pair[0];
-    let td2 = document.createElement("td");
-    td2.textContent = pair[1];
-    tr.appendChild(td1);
-    tr.appendChild(td2);
-    table.appendChild(tr);
-  }
-  return table;
-}
-
 // Strangely, it looks like passing in values for legend and yAxis don't work,
 // so they have to be specified with each chart created.
 Highcharts.setOptions({
