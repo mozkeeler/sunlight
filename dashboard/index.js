@@ -92,7 +92,6 @@ function makeChart(name) {
 function setChartLink(name) {
   let link = document.getElementById("chartlink");
   link.href = "?" + encodeURIComponent(name);
-  link.className = "";
 }
 
 function clearChildren(id) {
