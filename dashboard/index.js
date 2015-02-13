@@ -68,7 +68,6 @@ function makeChart(name) {
       series: worstSeries,
       yAxis: commonYAxis
     });
-    document.getElementById("autocomplete").value = name;
   } else if (name == "Top 10 CAs") {
     let top10tsChart = new Highcharts.StockChart({
       legend: commonLegend,
@@ -86,6 +85,7 @@ function makeChart(name) {
       makeExamples(seriesAndExamples.examples);
     });
   }
+  document.getElementById("autocomplete").value = name;
   setChartLink(name);
 }
 
