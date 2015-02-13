@@ -260,11 +260,11 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Couldn't allocate new cert summary\n")
 			os.Exit(1)
 		}
-		key := fmt.Sprintf("%s:%d", cert.Issuer.CommonName, TruncateMonth(ent.Entry.Timestamp))
+		certIssuerDN := DistinguishedNameToString(cert.Issuer)
+		key := fmt.Sprintf("%s:%d", certIssuerDN, TruncateMonth(ent.Entry.Timestamp))
 		issuersLock.Lock()
 		if issuers[key] == nil {
-			issuers[key] = NewIssuerReputation(
-				cert.Issuer.CommonName, ent.Entry.Timestamp)
+			issuers[key] = NewIssuerReputation(cert.Issuer, ent.Entry.Timestamp)
 		}
 		if issuers[key] == nil {
 			fmt.Fprintf(os.Stderr, "Couldn't allocate new issuer reputation\n")
@@ -321,14 +321,14 @@ func main() {
 			}
 
 			exampleMapLock.Lock()
-			if exampleMap[cert.Issuer.CommonName] == nil {
-				exampleMap[cert.Issuer.CommonName] = make(map[string]*x509.Certificate)
-				exampleMapLastSeen[cert.Issuer.CommonName] = make(map[string]uint64)
+			if exampleMap[certIssuerDN] == nil {
+				exampleMap[certIssuerDN] = make(map[string]*x509.Certificate)
+				exampleMapLastSeen[certIssuerDN] = make(map[string]uint64)
 			}
 			for violation, isViolation := range summary.Violations {
 				if isViolation {
-					exampleMap[cert.Issuer.CommonName][violation] = cert
-					exampleMapLastSeen[cert.Issuer.CommonName][violation] = ent.Entry.Timestamp
+					exampleMap[certIssuerDN][violation] = cert
+					exampleMapLastSeen[certIssuerDN][violation] = ent.Entry.Timestamp
 				}
 			}
 			exampleMapLock.Unlock()

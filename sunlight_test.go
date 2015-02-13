@@ -3,8 +3,11 @@ package sunlight
 import (
 	"bytes"
 	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/asn1"
 	"encoding/json"
 	"encoding/pem"
+	. "github.com/mozkeeler/sunlight"
 	"testing"
 	"time"
 )
@@ -30,7 +33,7 @@ func TestCertSummary(t *testing.T) {
 	summary, _ := CalculateCertSummary(cert, ts, nil, fakeCertList, fakeRootCAMap)
 	expected := CertSummary{
 		CN:                 "test.example.com",
-		Issuer:             "test.example.com",
+		Issuer:             "O=Acme Co, CN=test.example.com",
 		Sha256Fingerprint:  "Gvp+Qw6i96YPjUZoO2zqLWdusngA8xpAtvMBouj+MZ8=",
 		NotBefore:          "Jan 1 1970",
 		NotAfter:           "Jan 2 1970",
@@ -63,7 +66,7 @@ func TestIssuerReputation(t *testing.T) {
 	ts := uint64(time.Now().Unix())
 	summary := CertSummary{
 		CN:                "example.com",
-		Issuer:            "Honest Al",
+		Issuer:            "CN=Honest Al",
 		Sha256Fingerprint: "foo",
 		Violations: map[string]bool{
 			VALID_PERIOD_TOO_LONG:          true,
@@ -79,7 +82,7 @@ func TestIssuerReputation(t *testing.T) {
 	}
 	unknown_summary := CertSummary{
 		CN:                "unknown.example.com",
-		Issuer:            "Honest Al",
+		Issuer:            "CN=Honest Al",
 		Sha256Fingerprint: "foo",
 		Violations: map[string]bool{
 			VALID_PERIOD_TOO_LONG:          true,
@@ -94,7 +97,16 @@ func TestIssuerReputation(t *testing.T) {
 		IssuerInMozillaDB: false,
 		Timestamp:         ts,
 	}
-	issuer := NewIssuerReputation("Honest Al", ts)
+	// SEQUENCE of SET of SEQUENCE of OID (CN), PrintableString ("Honest Al")
+	subjectBytes := []byte{0x30, 0x14, 0x31, 0x12, 0x30, 0x10, 0x06, 0x03, 0x55, 0x04, 0x03, 0x13, 0x09, 0x48, 0x6f, 0x6e, 0x65, 0x73, 0x74, 0x20, 0x41, 0x6c}
+	var subject pkix.RDNSequence
+	_, err := asn1.Unmarshal(subjectBytes, &subject)
+	if err != nil {
+		t.Error("could not decode expected subject RDN", err)
+	}
+	var name pkix.Name
+	name.FillFromRDNSequence(&subject)
+	issuer := NewIssuerReputation(name, ts)
 	issuer.Update(&summary)
 	issuer.Update(&unknown_summary)
 	issuer.Finish()
@@ -111,7 +123,7 @@ func TestIssuerReputation(t *testing.T) {
 		t.Error("Should not be in mozilla db")
 	}
 	expected_issuer := IssuerReputation{
-		Issuer: "Honest Al",
+		Issuer: "CN=Honest Al",
 		Scores: map[string]*IssuerReputationScore{
 			DEPRECATED_SIGNATURE_ALGORITHM: {
 				NormalizedScore: 1,
