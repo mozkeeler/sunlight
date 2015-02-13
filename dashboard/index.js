@@ -86,12 +86,9 @@ function makeChart(name) {
     });
   }
   document.getElementById("autocomplete").value = name;
-  setChartLink(name);
-}
-
-function setChartLink(name) {
-  let link = document.getElementById("chartlink");
-  link.href = "?" + encodeURIComponent(name);
+  let search = "?" + encodeURIComponent(name);
+  document.getElementById("chartlink").href = search;
+  history.replaceState(null, "", location.origin + location.pathname + search);
 }
 
 function clearChildren(id) {
