@@ -106,6 +106,11 @@ let months = [
 ];
 
 function makeExamples(examples) {
+  // e.g. 'COMODO ECC Domain Validation Secure Server CA 2' has a perfect
+  // score, so there are no examples of bad certificates issued by it.
+  if (!examples) {
+    return;
+  }
   let examplesHeader = document.getElementById("examplesHeader");
   let examplesBody = document.getElementById("examplesBody");
   let exampleTypes = [];
@@ -122,12 +127,14 @@ function makeExamples(examples) {
                          lastSeen.getFullYear() + ")";
     examplesHeader.appendChild(header);
     let td = document.createElement("td");
-    let cert = document.createElement("textarea");
-    cert.setAttribute("rows", 30);
-    cert.setAttribute("cols", 66);
-    cert.setAttribute("readonly", "");
-    cert.textContent = examples[example + "Example"];
-    td.appendChild(cert);
+    let pem = examples[example + "Example"]
+                .replace(/[\r\n]/g, "")
+                .replace(/-----(BEGIN|END) CERTIFICATE-----/g, "");
+    let frame = document.createElement("iframe");
+    frame.width = "600px";
+    frame.height = "600px";
+    frame.src = "certsplainer/?" + pem;
+    td.appendChild(frame);
     examplesBody.appendChild(td);
   }
 }
