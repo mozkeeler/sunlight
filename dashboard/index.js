@@ -86,6 +86,13 @@ function makeChart(name) {
       makeExamples(seriesAndExamples.examples);
     });
   }
+  setChartLink(name);
+}
+
+function setChartLink(name) {
+  let link = document.getElementById("chartlink");
+  link.href = "?" + encodeURIComponent(name);
+  link.className = "";
 }
 
 function clearChildren(id) {
@@ -148,4 +155,5 @@ Highcharts.setOptions({
 });
 
 filterIssuersByIssuance();
-makeChart(filteredIssuers[0]);
+makeChart(location.search ? decodeURIComponent(location.search.substring(1))
+                          : filteredIssuers[0]);
