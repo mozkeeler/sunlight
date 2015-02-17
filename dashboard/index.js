@@ -8,9 +8,11 @@ for (i = 0; i < topIssuers.length; i++) {
 }
 
 let filteredIssuers = [];
-function filterIssuersByIssuance() {
+function filterIssuers() {
   // clear filteredIssuers but keep aliases to it
-  while (filteredIssuers.shift()) {}
+  while (filteredIssuers.length > 0) {
+    filteredIssuers.shift();
+  }
   filteredIssuers.push("Worst CAs");
   filteredIssuers.push("Top 10 CAs");
 
@@ -19,8 +21,12 @@ function filterIssuersByIssuance() {
   let output = document.getElementById("minimumIssuanceOutput");
   output.value = minimumIssuance;
 
-  for (let issuer of issuers) {
-    if (issuer.totalIssuance >= minimumIssuance) {
+  let issuerInMozillaDB = document.getElementById("issuerInMozillaDB").checked;
+
+  for (let index in issuers) {
+    let issuer = issuers[index];
+    if (issuer.totalIssuance >= minimumIssuance &&
+        issuer.issuerInMozillaDB == issuerInMozillaDB) {
       filteredIssuers.push(issuer.issuer);
     }
   }
@@ -35,7 +41,7 @@ $('#autocomplete').autocomplete({
 });
 
 function escapeName(name) {
-  return name.replace(/[^A-Za-z0-9]/g, "_");
+  return name.replace(/[^A-Za-z0-9]/g, "_").replace(/(^[0-9])/, "_$1");
 }
 
 function getChartData(name, continuation) {
@@ -83,6 +89,8 @@ function makeChart(name) {
         yAxis: commonYAxis
       });
       makeExamples(seriesAndExamples.examples);
+      let checkbox = document.getElementById("issuerInMozillaDB");
+      checkbox.checked = issuers[escapeName(name)].issuerInMozillaDB;
     });
   }
   document.getElementById("autocomplete").value = name;
@@ -149,6 +157,6 @@ Highcharts.setOptions({
   }
 });
 
-filterIssuersByIssuance();
+filterIssuers();
 makeChart(location.search ? decodeURIComponent(location.search.substring(1))
                           : filteredIssuers[0]);
