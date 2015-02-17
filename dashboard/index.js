@@ -87,7 +87,6 @@ function makeChart(name) {
   }
   document.getElementById("autocomplete").value = name;
   let search = "?" + encodeURIComponent(name);
-  document.getElementById("chartlink").href = search;
   history.replaceState(null, "", location.origin + location.pathname + search);
 }
 
