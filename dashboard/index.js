@@ -68,7 +68,6 @@ function makeChart(name) {
       series: worstSeries,
       yAxis: commonYAxis
     });
-    document.getElementById("autocomplete").value = name;
   } else if (name == "Top 10 CAs") {
     let top10tsChart = new Highcharts.StockChart({
       legend: commonLegend,
@@ -86,6 +85,9 @@ function makeChart(name) {
       makeExamples(seriesAndExamples.examples);
     });
   }
+  document.getElementById("autocomplete").value = name;
+  let search = "?" + encodeURIComponent(name);
+  history.replaceState(null, "", location.origin + location.pathname + search);
 }
 
 function clearChildren(id) {
@@ -148,4 +150,5 @@ Highcharts.setOptions({
 });
 
 filterIssuersByIssuance();
-makeChart(filteredIssuers[0]);
+makeChart(location.search ? decodeURIComponent(location.search.substring(1))
+                          : filteredIssuers[0]);
