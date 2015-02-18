@@ -21,7 +21,7 @@ try {
 }
 
 function escapeName(name) {
-  return name.replace(/[^A-Za-z0-9]/g, "_");
+  return name.replace(/[^A-Za-z0-9]/g, "_").replace(/(^[0-9])/, "_$1");
 }
 
 // Dumps to the console a single timeseries of the following format:
@@ -134,24 +134,33 @@ function dumpScoresVolumeAndExamplesForIssuer(issuer, issuerFilename) {
 }
 
 var allIssuers = [];
-db.each("SELECT issuer, sum(rawCount) AS totalIssuance FROM issuerReputation " +
-        "WHERE issuerInMozillaDB GROUP BY issuer;",
+db.each("SELECT issuer, issuerInMozillaDB, sum(rawCount) AS totalIssuance " +
+        "FROM issuerReputation GROUP BY issuer;",
   function(err, row) {
-    allIssuers.push(row);
+    // convert {0,1} to {false,true}
+    if (row.issuerInMozillaDB == 0) {
+      row.issuerInMozillaDB = false;
+    } else if (row.issuerInMozillaDB == 1) {
+      row.issuerInMozillaDB = true;
+    }
+    if (row.issuer.length > 0) { // this will be fixed by issue #57
+      allIssuers.push(row);
+    }
   },
   function(err, numRows) {
     var maxIssuance = 0;
-    console.log("var issuers = [");
+    console.log("var issuers = {");
     allIssuers.forEach(function(issuer) {
       if (issuer.totalIssuance > maxIssuance) {
         maxIssuance = issuer.totalIssuance;
       }
-      console.log(JSON.stringify(issuer) + ",");
-      var issuerFilename = "data/" + escapeName(issuer.issuer) + ".json";
+      var escapedName = escapeName(issuer.issuer);
+      console.log(escapedName + ": " + JSON.stringify(issuer) + ",");
+      var issuerFilename = "data/" + escapedName + ".json";
       initIssuerData(issuerFilename);
       dumpScoresVolumeAndExamplesForIssuer(issuer.issuer, issuerFilename);
     });
-    console.log("];");
+    console.log("};");
     console.log("var maxIssuance = " + maxIssuance + ";");
   }
 );
