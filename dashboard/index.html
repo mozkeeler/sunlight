@@ -12,9 +12,12 @@
 <body>
   <div>
     Minimum Issuance: <input type="range" id="minimumIssuance" min="0" max="100"
-                       onchange="filterIssuersByIssuance();">
+                       onchange="filterIssuers();">
     <input type="text" id="minimumIssuanceOutput" value="1000" readonly
      style="width: 5em;"/>
+    <input type="checkbox" id="issuerInMozillaDB" checked=true onchange="filterIssuers();">
+      Issuers in Mozilla's root program
+    </input>
   </div>
   <div id="searchfield">
     Issuer: <input type="text" id="autocomplete" style="width:26em;">
