@@ -1,13 +1,13 @@
-let worstSeries = [];
+var worstSeries = [];
 for (i = 0; i < worstIssuers.length; i++) {
   worstSeries.push(timeseries[worstIssuers[i]]);
 }
-let top10series = [];
+var top10series = [];
 for (i = 0; i < topIssuers.length; i++) {
   top10series.push(timeseries[topIssuers[i]]);
 }
 
-let filteredIssuers = [];
+var filteredIssuers = [];
 function filterIssuers() {
   // clear filteredIssuers but keep aliases to it
   while (filteredIssuers.length > 0) {
@@ -16,15 +16,15 @@ function filterIssuers() {
   filteredIssuers.push("Worst CAs");
   filteredIssuers.push("Top 10 CAs");
 
-  let sliderValue = document.getElementById("minimumIssuance").value;
-  let minimumIssuance = Math.ceil(Math.pow(maxIssuance, sliderValue / 100));
-  let output = document.getElementById("minimumIssuanceOutput");
+  var sliderValue = document.getElementById("minimumIssuance").value;
+  var minimumIssuance = Math.ceil(Math.pow(maxIssuance, sliderValue / 100));
+  var output = document.getElementById("minimumIssuanceOutput");
   output.value = minimumIssuance;
 
-  let issuerInMozillaDB = document.getElementById("issuerInMozillaDB").checked;
+  var issuerInMozillaDB = document.getElementById("issuerInMozillaDB").checked;
 
-  for (let index in issuers) {
-    let issuer = issuers[index];
+  for (var index in issuers) {
+    var issuer = issuers[index];
     if (issuer.totalIssuance >= minimumIssuance &&
         issuer.issuerInMozillaDB == issuerInMozillaDB) {
       filteredIssuers.push(issuer.issuer);
@@ -45,19 +45,19 @@ function escapeName(name) {
 }
 
 function getChartData(name, continuation) {
-  let escapedName = escapeName(name);
-  let req = new XMLHttpRequest();
+  var escapedName = escapeName(name);
+  var req = new XMLHttpRequest();
   req.open("GET", "data/" + escapedName + ".json", true);
   req.onreadystatechange = function() {
     if (req.readyState == XMLHttpRequest.DONE && req.status == 200) {
-      let data = JSON.parse(req.responseText);
+      var data = JSON.parse(req.responseText);
       continuation(data);
     }
   };
   req.send();
 }
 
-let commonLegend = {
+var commonLegend = {
   enabled: true,
   layout: "vertical",
   align: "right",
@@ -67,7 +67,7 @@ let commonLegend = {
 
 function makeChart(name) {
   clearExamples();
-  let commonYAxis = [{ max: 1.0, min: 0.0 }, { min: 0, opposite: false }];
+  var commonYAxis = [{ max: 1.0, min: 0.0 }, { min: 0, opposite: false }];
   if (name == "Worst CAs") {
     new Highcharts.StockChart({
       legend: commonLegend,
@@ -75,7 +75,7 @@ function makeChart(name) {
       yAxis: commonYAxis
     });
   } else if (name == "Top 10 CAs") {
-    let top10tsChart = new Highcharts.StockChart({
+    var top10tsChart = new Highcharts.StockChart({
       legend: commonLegend,
       series: top10series,
       yAxis: commonYAxis
@@ -89,17 +89,17 @@ function makeChart(name) {
         yAxis: commonYAxis
       });
       makeExamples(seriesAndExamples.examples);
-      let checkbox = document.getElementById("issuerInMozillaDB");
+      var checkbox = document.getElementById("issuerInMozillaDB");
       checkbox.checked = issuers[escapeName(name)].issuerInMozillaDB;
     });
   }
   document.getElementById("autocomplete").value = name;
-  let search = "?" + encodeURIComponent(name);
+  var search = "?" + encodeURIComponent(name);
   history.replaceState(null, "", location.origin + location.pathname + search);
 }
 
 function clearChildren(id) {
-  let element = document.getElementById(id);
+  var element = document.getElementById(id);
   while (element.children.length > 0) {
     element.children[0].remove();
   }
@@ -110,10 +110,18 @@ function clearExamples() {
   clearChildren("examplesBody");
 }
 
-let months = [
+var months = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov",
   "Dec"
 ];
+
+function stringEndsWith(string, suffix) {
+  if (suffix.length > string.length) {
+    return false;
+  }
+  var index = string.indexOf(suffix, string.length - suffix.length);
+  return index != -1;
+}
 
 function makeExamples(examples) {
   // e.g. 'COMODO ECC Domain Validation Secure Server CA 2' has a perfect
@@ -121,26 +129,26 @@ function makeExamples(examples) {
   if (!examples) {
     return;
   }
-  let examplesHeader = document.getElementById("examplesHeader");
-  let examplesBody = document.getElementById("examplesBody");
-  let exampleTypes = [];
-  for (let key of Object.keys(examples)) {
-    if (key.endsWith("Example") && examples[key]) {
+  var examplesHeader = document.getElementById("examplesHeader");
+  var examplesBody = document.getElementById("examplesBody");
+  var exampleTypes = [];
+  for (var key of Object.keys(examples)) {
+    if (stringEndsWith(key, "Example") && examples[key]) {
       exampleTypes.push(key.substring(0, key.indexOf("Example")));
     }
   }
-  for (let example of exampleTypes) {
-    let header = document.createElement("th");
-    let lastSeen = new Date(examples[example + "LastSeen"]);
+  for (var example of exampleTypes) {
+    var header = document.createElement("th");
+    var lastSeen = new Date(examples[example + "LastSeen"]);
     header.textContent = example + " (last seen " + lastSeen.getDate() + " " +
                          months[lastSeen.getMonth()] + " " +
                          lastSeen.getFullYear() + ")";
     examplesHeader.appendChild(header);
-    let td = document.createElement("td");
-    let pem = examples[example + "Example"]
+    var td = document.createElement("td");
+    var pem = examples[example + "Example"]
                 .replace(/[\r\n]/g, "")
                 .replace(/-----(BEGIN|END) CERTIFICATE-----/g, "");
-    let frame = document.createElement("iframe");
+    var frame = document.createElement("iframe");
     frame.width = "600px";
     frame.height = "600px";
     frame.src = "certsplainer/?" + pem;
