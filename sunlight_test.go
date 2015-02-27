@@ -7,7 +7,6 @@ import (
 	"encoding/asn1"
 	"encoding/json"
 	"encoding/pem"
-	. "github.com/mozkeeler/sunlight"
 	"testing"
 	"time"
 )
