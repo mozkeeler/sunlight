@@ -1,10 +1,12 @@
 package sunlight
 
 import (
+	"bytes"
 	"code.google.com/p/go.net/idna"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/base64"
 	"fmt"
 	_ "github.com/mattn/go-sqlite3"
@@ -94,19 +96,50 @@ func (summary *CertSummary) ViolatesBR() bool {
 	return false
 }
 
+func maybeAppendFieldToBuffer(buffer *bytes.Buffer, field []string, prefix string) {
+	if len(field) > 0 && len(field[0]) > 0 {
+		if buffer.Len() > 0 {
+			fmt.Fprint(buffer, ", ")
+		}
+		fmt.Fprint(buffer, prefix, field[0])
+	}
+}
+
+func DistinguishedNameToString(n pkix.Name) string {
+	buffer := bytes.NewBufferString("")
+	// This is strange: x509.pkix.Name is defined as:
+	// type Name struct {
+	//   Country, Organization, OrganizationalUnit []string
+	//   Locality, Province                        []string
+	//   StreetAddress, PostalCode                 []string
+	//   SerialNumber, CommonName                  string
+	//
+	//   Names []AttributeTypeAndValue
+	// }
+	// so in theory there could be multiple values for Country, Organization, etc.
+	// (except for SerialNumber and CommonName, the former of which we're completely
+	// ignoring anyway). We'll just be lazy and take the first of each.
+	// Also, since our list of root CAs only uses Organization, OrganizationalUnit,
+	// and CommonName, we'll only consider those.
+	maybeAppendFieldToBuffer(buffer, n.Organization, "O=")
+	maybeAppendFieldToBuffer(buffer, n.OrganizationalUnit, "OU=")
+	maybeAppendFieldToBuffer(buffer, []string{n.CommonName}, "CN=")
+	return buffer.String()
+}
+
 func containsIssuerInRootList(certChain []*x509.Certificate, rootCAMap map[string]bool) bool {
 	for _, cert := range certChain {
-		if rootCAMap[cert.Issuer.CommonName] {
+		if rootCAMap[DistinguishedNameToString(cert.Issuer)] {
 			return true
 		}
 	}
 	return false
 }
 
-func NewIssuerReputation(issuer string, timestamp uint64) *IssuerReputation {
+func NewIssuerReputation(issuer pkix.Name, timestamp uint64) *IssuerReputation {
 	reputation := new(IssuerReputation)
 	reputation.BeginTime = TruncateMonth(timestamp)
-	reputation.Issuer = issuer
+	reputation.Issuer = DistinguishedNameToString(issuer)
 	reputation.Scores = make(map[string]*IssuerReputationScore)
 	return reputation
 }
@@ -167,7 +200,7 @@ func CalculateCertSummary(cert *x509.Certificate, timestamp uint64, ranker *alex
 	summary := CertSummary{}
 	summary.Timestamp = timestamp
 	summary.CN = cert.Subject.CommonName
-	summary.Issuer = cert.Issuer.CommonName
+	summary.Issuer = DistinguishedNameToString(cert.Issuer)
 	summary.NotBefore = TimeToJSONString(cert.NotBefore)
 	summary.NotAfter = TimeToJSONString(cert.NotAfter)
 	summary.IsCA = cert.IsCA
@@ -264,9 +297,10 @@ func CalculateCertSummary(cert *x509.Certificate, timestamp uint64, ranker *alex
 	return &summary, nil
 }
 
-// Takes the name of a file containing newline-delimited Subject Common Names
-// that each correspond to a certificate in Mozilla's root CA program.
-// Returns these names as a map of string -> bool.
+// Takes the name of a file containing newline-delimited Subject Names (as
+// interpreted by DistinguishedNameToString) that each correspond to a
+// certificate in Mozilla's root CA program. Returns these names as a map of
+// string -> bool.
 func ReadRootCAMap(filename string) map[string]bool {
 	caStringBytes, err := ioutil.ReadFile(filename)
 	if err != nil {
